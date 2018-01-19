@@ -220,3 +220,4 @@ All notable changes to this project are documented in this file.
 - WebAuthn enrollment and authentication flow
 - Sudo command gateway mode
 - Professional GitHub repository scaffolding
+- [2018-01-19]: refactor: improve security checks in authentication handlers
