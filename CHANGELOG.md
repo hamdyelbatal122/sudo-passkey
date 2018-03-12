@@ -225,3 +225,4 @@ All notable changes to this project are documented in this file.
 - [2018-02-08]: chore: update passkey metadata validations
 - [2018-02-20]: style: format authentication templates
 - [2018-03-01]: docs: document browser compatibility standards
+- [2018-03-12]: refactor: simplify cryptographic signature checks
