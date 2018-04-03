@@ -227,3 +227,4 @@ All notable changes to this project are documented in this file.
 - [2018-03-01]: docs: document browser compatibility standards
 - [2018-03-12]: refactor: simplify cryptographic signature checks
 - [2018-03-24]: fix: correct session expiration parameters
+- [2018-04-03]: docs: document passkey registration flows
