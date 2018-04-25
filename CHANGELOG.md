@@ -229,3 +229,4 @@ All notable changes to this project are documented in this file.
 - [2018-03-24]: fix: correct session expiration parameters
 - [2018-04-03]: docs: document passkey registration flows
 - [2018-04-14]: chore: configure default origin verification rules
+- [2018-04-25]: refactor: clean up redundant tokens validations
