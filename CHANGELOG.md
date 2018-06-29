@@ -235,3 +235,4 @@ All notable changes to this project are documented in this file.
 - [2018-05-28]: chore: update license info in headers
 - [2018-06-07]: refactor: optimize session validation steps
 - [2018-06-19]: docs: update troubleshooting tips for Safari
+- [2018-06-29]: fix: resolve public key parameters parsing
