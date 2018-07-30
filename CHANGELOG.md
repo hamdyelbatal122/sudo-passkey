@@ -238,3 +238,4 @@ All notable changes to this project are documented in this file.
 - [2018-06-29]: fix: resolve public key parameters parsing
 - [2018-07-11]: refactor: streamline credential creation response
 - [2018-07-20]: docs: update secure origin guides
+- [2018-07-30]: style: standardize encryption algorithm names
