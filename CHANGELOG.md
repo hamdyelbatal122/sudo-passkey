@@ -241,3 +241,4 @@ All notable changes to this project are documented in this file.
 - [2018-07-30]: style: standardize encryption algorithm names
 - [2018-08-10]: chore: update testing instructions
 - [2018-08-20]: refactor: improve security checks in authentication handlers
+- [2018-08-30]: docs: document WebAuthn configuration guidelines
