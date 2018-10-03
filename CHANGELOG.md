@@ -244,3 +244,4 @@ All notable changes to this project are documented in this file.
 - [2018-08-30]: docs: document WebAuthn configuration guidelines
 - [2018-09-10]: chore: update passkey metadata validations
 - [2018-09-22]: style: format authentication templates
+- [2018-10-03]: docs: document browser compatibility standards
