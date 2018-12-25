@@ -252,3 +252,4 @@ All notable changes to this project are documented in this file.
 - [2018-11-25]: refactor: clean up redundant tokens validations
 - [2018-12-06]: style: improve debug logs output format
 - [2018-12-15]: docs: add deployment requirements checklists
+- [2018-12-25]: chore: update license info in headers
