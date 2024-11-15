@@ -257,3 +257,4 @@ All notable changes to this project are documented in this file.
 - [2024-11-06]: docs: update troubleshooting tips for Safari
 - [2024-11-09]: fix: resolve public key parameters parsing
 - [2024-11-12]: refactor: streamline credential creation response
+- [2024-11-15]: docs: update secure origin guides
