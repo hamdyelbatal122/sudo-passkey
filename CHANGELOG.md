@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.5] - 2026-05-02
+
+### Added (0.2.5)
+
+- Auto-detect LAN IP on every `enroll` / `check` / `run` — no manual `rp-id` / `rp-origin` settings needed for mobile
+- Auto-generate in-memory self-signed TLS certificate (ECDSA P-256, 10-year validity, SANs for LAN IP + localhost)
+- Serve HTTPS on `0.0.0.0:14141` when LAN is present; plain HTTP on `localhost:14141` otherwise
+- QR code displayed in a fixed bottom-left widget on the web page (always visible, no scroll needed)
+- Certificate warning banner with "Advanced → Proceed" instructions shown automatically in HTTPS mode
+- Auto-persist updated `rp-id` / `rp-origin` to config so future commands stay in sync
+- Graceful fallback to localhost HTTP when no LAN interface is found
+
+### Fixed (0.2.5)
+
+- Resolved "This browser does not support WebAuthn/Passkeys" on mobile — was caused by non-secure HTTP context
+- Removed need to manually run `passkey-sudo settings set rp-id ...` before mobile enrollment
+
 ## [0.2.4] - 2026-05-02
 
 ### Added (0.2.4)
