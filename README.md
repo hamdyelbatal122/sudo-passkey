@@ -1,60 +1,54 @@
 # Passkey-Sudo (The Security Gate)
 
-Passkey-Sudo is a Go CLI that adds a Passkey biometric security gate before privileged commands.
-Instead of typing a sudo password for each protected operation, you approve access with your fingerprint/face/passkey from your laptop or mobile device.
+Passkey-Sudo is a Go CLI that adds a biometric/passkey gate before privileged commands.
+Instead of typing a sudo password every time, you approve with your fingerprint/face/passkey.
 
-## Status
+## What You Get
 
-This project is production-ready as a repository template and MVP implementation.
-
-- Passkey registration via WebAuthn
+- Passkey enrollment via WebAuthn
 - Passkey verification before sudo execution
-- Local-only verification flow on 127.0.0.1
-- Clean CLI UX for Linux/macOS
-- CI-ready GitHub setup
+- Local-only verification flow (no remote auth dependency)
+- Easy install from latest release
+- CLI commands for passkeys, allowlist, and settings
 
-## Why this exists
+## How It Works
 
-sudo protects privileged access with passwords. Password prompts are weak against shoulder-surfing, reuse, and phishing.
-Passkey-Sudo enforces modern, phishing-resistant WebAuthn checks before a command is allowed to run.
+1. `passkey-sudo enroll` starts a local WebAuthn flow.
+2. You register a passkey (platform or hardware authenticator).
+3. `passkey-sudo run -- <command>` requests biometric approval.
+4. On success, command is executed with `sudo`.
 
-## How it works
+## Install (Recommended)
 
-1. passkey-sudo enroll opens a local WebAuthn flow.
-2. You register a passkey (Touch ID, Windows Hello, Android/iOS passkey, or hardware key).
-3. passkey-sudo run -- COMMAND launches a short authentication challenge.
-4. After successful biometric approval, the command is executed with sudo.
-
-## Important sudo note
-
-Passkey-Sudo is a security gate wrapper and does not replace PAM internals.
-For passwordless sudo UX, configure sudoers for the exact allowed commands and keep Passkey-Sudo as the biometric policy gate.
-
-See docs/sudoers.example.
-
-## Installation
-
-### Recommended: install latest release (Linux/macOS)
+Install latest release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
 ```
 
-What this installer does:
+Installer behavior:
 
-- Detects your OS/architecture
-- Downloads and installs the latest GitHub Release binary when available
-- Falls back to source build if no release asset exists for your platform
-- Automatically installs Go only when fallback build is needed and Go is missing
+- Detects OS and architecture
+- Downloads latest release binary when available
+- Falls back to source build if no matching asset exists
+- Installs Go automatically only when fallback build needs it
 
-Optional environment overrides:
+Optional overrides:
 
 ```bash
 PASSKEY_SUDO_INSTALL_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
 PASSKEY_SUDO_GO_VERSION=1.23.10 curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
 ```
 
-### Install from source manually
+## Update To Latest Release
+
+Run the same installer command again:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
+```
+
+## Manual Install From Source
 
 ```bash
 git clone https://github.com/hamdyelbatal122/sudo-passkey.git
@@ -64,19 +58,9 @@ make build
 sudo install -m 0755 bin/passkey-sudo /usr/local/bin/passkey-sudo
 ```
 
-### If Go is not installed and you prefer manual setup
+If you prefer installing Go manually first, see [Go installation guide](https://go.dev/doc/install).
 
-Install Go 1.23+ from:
-
-- https://go.dev/doc/install
-
-Then verify:
-
-```bash
-go version
-```
-
-## Quick start
+## Quick Start
 
 ```bash
 passkey-sudo init
@@ -85,60 +69,10 @@ passkey-sudo check
 passkey-sudo run -- systemctl restart nginx
 ```
 
-## Easy customization
-
-### Manage passkeys
-
-```bash
-passkey-sudo passkey add
-passkey-sudo passkey list
-passkey-sudo passkey remove 1
-```
-
-### Manage allowed commands
-
-```bash
-passkey-sudo allow add /usr/bin/systemctl
-passkey-sudo allow list
-passkey-sudo allow remove /usr/bin/systemctl
-```
-
-### Manage settings from CLI
-
-```bash
-passkey-sudo settings show
-passkey-sudo settings set username my-admin
-passkey-sudo settings set open-browser false
-passkey-sudo settings set sudo-non-interactive true
-```
-
-## Configuration
-
-Config file path:
-
-- Linux/macOS: ~/.config/passkey-sudo/config.json
-
-Default shape:
-
-```json
-{
-  "version": 1,
-  "rp_id": "localhost",
-  "rp_origin": "http://127.0.0.1:14141",
-  "rp_display_name": "Passkey-Sudo",
-  "username": "local-admin",
-  "user_id": "<generated>",
-  "credentials": [],
-  "allowed_commands": [],
-  "sudo_non_interactive": true,
-  "open_browser_on_prompt": true
-}
-```
-
-## Command reference
+## Command Reference
 
 ```text
-passkey-sudo init [--rp-id localhost --rp-origin http://127.0.0.1:14141 --rp-name Passkey-Sudo --username local-admin]
+passkey-sudo init [--rp-id localhost --rp-origin http://localhost:14141 --rp-name Passkey-Sudo --username local-admin]
 passkey-sudo enroll
 passkey-sudo add-passkey
 passkey-sudo passkey <add|list|remove>
@@ -149,28 +83,87 @@ passkey-sudo run -- <command> [args...]
 passkey-sudo version
 ```
 
-## Security principles
+## Daily Operations
 
-- Local challenge server only (127.0.0.1)
-- No remote auth dependency
-- No plaintext passwords handled by this tool
-- Config file permission set to 0600
+Manage passkeys:
 
-## Repository quality
+```bash
+passkey-sudo passkey add
+passkey-sudo passkey list
+passkey-sudo passkey remove 1
+```
 
-- Conventional Go project layout
-- CI workflow (build, test, vet)
-- Release automation template
-- Community docs (CONTRIBUTING, SECURITY, code of conduct)
+Manage allowed commands:
 
-## Roadmap
+```bash
+passkey-sudo allow add /usr/bin/systemctl
+passkey-sudo allow list
+passkey-sudo allow remove /usr/bin/systemctl
+```
 
-- Native PAM module mode
-- Policy profiles per host/user/team
-- Enterprise audit log output
-- FIDO2 resident-key hardening profiles
+Manage runtime settings:
+
+```bash
+passkey-sudo settings show
+passkey-sudo settings set username my-admin
+passkey-sudo settings set open-browser false
+passkey-sudo settings set sudo-non-interactive true
+```
+
+## Configuration
+
+Default config path:
+
+- Linux/macOS: `~/.config/passkey-sudo/config.json`
+
+Default config:
+
+```json
+{
+  "version": 1,
+  "rp_id": "localhost",
+  "rp_origin": "http://localhost:14141",
+  "rp_display_name": "Passkey-Sudo",
+  "username": "local-admin",
+  "user_id": "<generated>",
+  "credentials": [],
+  "allowed_commands": [],
+  "sudo_non_interactive": true,
+  "open_browser_on_prompt": true
+}
+```
+
+## Troubleshooting
+
+### "Error: This is an invalid domain"
+
+Use matching RP settings:
+
+```bash
+passkey-sudo settings set rp-id localhost
+passkey-sudo settings set rp-origin http://localhost:14141
+```
+
+Then re-enroll:
+
+```bash
+passkey-sudo enroll
+```
+
+### Go not found
+
+The installer auto-installs Go only when source fallback is required.
+If you need manual install, use: [Go installation guide](https://go.dev/doc/install).
+
+## Security Notes
+
+- Keep `sudoers` least-privilege and command-restricted
+- Keep passkey-enabled browser and OS updated
+- Config file is saved with `0600` permissions
+
+See `docs/sudoers.example` for policy guidance.
 
 ## Disclaimer
 
-This tool gates privileged commands but does not guarantee full host hardening.
-Use with least-privilege sudoers policy, disk encryption, and endpoint protection.
+Passkey-Sudo improves privileged command gating but is not a full host-hardening replacement.
+Use it with least-privilege policy, endpoint protection, and disk encryption.
