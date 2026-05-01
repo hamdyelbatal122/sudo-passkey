@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.10] - 2026-05-02
+
+### Fixed (0.2.10)
+
+- Fixed WebAuthn failure when opening LAN IP URL from the same machine/browser
+- Added automatic redirect from same-device LAN access to localhost ceremony URL
+- Kept LAN URL available for external devices without forcing localhost redirect
+
+### Improved (0.2.10)
+
+- Improved unsupported-origin UI message with clearer secure-origin guidance
+
 ## [0.2.9] - 2026-05-02
 
 ### Fixed (0.2.9)

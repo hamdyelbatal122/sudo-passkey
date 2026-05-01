@@ -236,7 +236,7 @@
     }
 
     if (!window.PublicKeyCredential) {
-      setStatus('This browser does not support WebAuthn/Passkeys.\nTry Chrome, Safari, or Firefox on a supported OS.', 'err');
+      setStatus('This page host is not a secure WebAuthn origin.\nOpen the same flow on localhost for this device, or use HTTPS with a trusted certificate.', 'err');
       loadQR(); // still show QR so user can switch to phone
     } else {
       start();
