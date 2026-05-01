@@ -37,6 +37,12 @@ See docs/sudoers.example.
 ### One-line installer (Linux/macOS)
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
+```
+
+If your repository default branch is `main`, use:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/main/scripts/install.sh | bash
 ```
 
