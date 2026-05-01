@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.7] - 2026-05-02
+
+### Fixed (0.2.7)
+
+- Fixed WebAuthn failures caused by untrusted local TLS certificates in mobile-LAN mode
+- Restored stable default flow to trusted localhost secure context (no self-signed cert dependency)
+- Prevented domain mismatch errors by keeping default ceremony host aligned with `localhost`
+
+### Improved (0.2.7)
+
+- Added explicit guidance to use browser native "use a phone or tablet" passkey flow for cross-device enrollment
+- Kept LAN TLS mode available only as explicit opt-in (`PASSKEY_SUDO_ENABLE_LAN_TLS=1`)
+
 ## [0.2.6] - 2026-05-02
 
 ### Fixed (0.2.6)

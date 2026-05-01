@@ -92,9 +92,9 @@
     <p class="subtitle"><span class="pulse"></span>Complete the passkey prompt from your browser or mobile device.</p>
     <div id="status" class="status">Starting secure flow…</div>
     <div id="cert-warn" class="cert-warn">
-      <strong>⚠ Self-signed certificate</strong>
-      If your browser blocked the page, click <strong>Advanced → Proceed to site</strong> to continue.
-      This is expected for a local self-signed certificate — your data never leaves your network.
+      <strong>Phone Passkey Tip</strong>
+      If you want to enroll using your phone, choose <strong>Use a phone or tablet</strong>
+      in the browser passkey prompt. The browser will show its own secure QR flow.
     </div>
   </main>
 
@@ -187,6 +187,7 @@
           certWarn.style.display = 'block';
         } else {
           qrWidget.style.display = 'none';
+          certWarn.style.display = 'block';
         }
       } catch (_) { /* ignore — QR is optional */ }
     }
