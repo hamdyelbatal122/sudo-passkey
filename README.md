@@ -132,6 +132,27 @@ Notes:
 - `localhost` works for laptop-only flow.
 - For mobile QR flow, `localhost` and loopback IPs are intentionally blocked.
 
+### Reliable Mobile Flow (Trusted HTTPS)
+
+Mobile WebAuthn requires a trusted HTTPS origin. Best workflow:
+
+1. Start app flow on laptop:
+
+```bash
+passkey-sudo enroll
+```
+
+2. In another terminal, expose local port with ngrok:
+
+```bash
+ngrok http 14141
+```
+
+3. Re-run `passkey-sudo enroll`.
+
+Passkey-Sudo auto-detects ngrok HTTPS tunnel and uses it as trusted RP origin.
+Then QR works on phone without insecure-origin errors.
+
 ## Configuration
 
 Default config path:

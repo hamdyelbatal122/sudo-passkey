@@ -93,7 +93,7 @@
     <div id="status" class="status">Starting secure flow…</div>
     <div id="cert-warn" class="cert-warn">
       <strong>Phone Passkey</strong>
-      QR opens the same enrollment page on your phone.
+      QR is enabled only when a trusted HTTPS public origin is active.
     </div>
   </main>
 
@@ -179,6 +179,9 @@
     async function loadQR() {
       try {
         const meta = await (await fetch('/api/meta')).json();
+        if (meta.mobile_hint) {
+          certWarn.innerHTML = '<strong>Phone Passkey</strong>' + meta.mobile_hint;
+        }
         if (meta.mobile_ready && meta.mobile_url && !isMobileClient()) {
           qrImg.src   = '/qr.png';
           qrUrlTxt.textContent = meta.mobile_url;
@@ -236,7 +239,7 @@
     }
 
     if (!window.PublicKeyCredential) {
-      setStatus('This page host is not a secure WebAuthn origin.\nOpen the same flow on localhost for this device, or use HTTPS with a trusted certificate.', 'err');
+      setStatus('WebAuthn is unavailable on this origin.\nUse localhost on this device or enable trusted HTTPS public origin for mobile.', 'err');
       loadQR(); // still show QR so user can switch to phone
     } else {
       start();
