@@ -8,18 +8,20 @@
     :root {
       --bg-1: #0a2029;
       --bg-2: #133b49;
-      --card: rgba(248, 250, 252, 0.95);
+      --card: rgba(248,250,252,0.97);
       --text: #0f172a;
+      --muted: #475569;
       --accent: #0ea5a4;
       --danger: #be123c;
+      --warn-bg: #fefce8;
+      --warn-border: #fbbf24;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      margin: 0;
       min-height: 100vh;
       display: grid;
       place-items: center;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      font-family: "IBM Plex Sans","Segoe UI",system-ui,sans-serif;
       color: var(--text);
       background:
         radial-gradient(circle at 10% 20%, #1d4ed8 0%, transparent 50%),
@@ -27,214 +29,206 @@
         linear-gradient(140deg, var(--bg-1), var(--bg-2));
       padding: 1rem;
     }
+
+    /* ── Main panel ───────────────────────────────────────── */
     .panel {
-      width: min(680px, 100%);
+      width: min(640px, 100%);
       background: var(--card);
       border-radius: 20px;
-      padding: 1.3rem 1.2rem;
-      box-shadow: 0 20px 65px rgba(2, 8, 23, 0.35);
-      animation: rise .45s ease;
-    }
-    h1 { margin: 0 0 .5rem; font-size: clamp(1.3rem, 3vw, 2rem); letter-spacing: .01em; }
-    p { margin: .4rem 0; line-height: 1.5; }
-    .status {
-      margin-top: .8rem;
-      border: 1px solid #cbd5e1;
-      background: #fff;
-      border-radius: 12px;
-      padding: .9rem;
-      min-height: 3rem;
-      font-family: "IBM Plex Mono", ui-monospace, monospace;
-      white-space: pre-wrap;
-    }
-    .mobile {
-      margin-top: .9rem;
-      border: 1px dashed #94a3b8;
-      border-radius: 12px;
-      padding: .8rem;
-      background: #f8fafc;
-    }
-    .mobile h2 {
-      margin: 0 0 .4rem;
-      font-size: 1rem;
-    }
-    .mobile img {
-      width: 180px;
-      height: 180px;
-      border-radius: 10px;
-      border: 1px solid #cbd5e1;
-      background: #fff;
-      display: none;
-    }
-    .mobile small {
-      display: block;
-      margin-top: .45rem;
-      font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: .78rem;
-      color: #334155;
-      word-break: break-all;
-    }
-    .ok { color: #065f46; }
-    .err { color: var(--danger); }
-    .pulse {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-      background: var(--accent);
-      display: inline-block;
-      margin-right: .5rem;
-      animation: pulse 1.15s infinite;
-      vertical-align: middle;
-    }
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 1; }
-      100% { transform: scale(2.2); opacity: 0; }
+      padding: 1.5rem 1.4rem;
+      box-shadow: 0 20px 65px rgba(2,8,23,.35);
+      animation: rise .4s ease;
     }
     @keyframes rise {
-      from { transform: translateY(12px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
+      from { transform: translateY(14px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
     }
+    h1 { font-size: clamp(1.2rem,3vw,1.75rem); letter-spacing: .01em; margin-bottom: .5rem; }
+    .subtitle { color: var(--muted); font-size: .9rem; margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+
+    /* ── Pulse dot ────────────────────────────────────────── */
+    .pulse {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent); flex-shrink: 0;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+
+    /* ── Status box ───────────────────────────────────────── */
+    .status {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      border-radius: 12px;
+      padding: .85rem 1rem;
+      min-height: 3rem;
+      font-family: "IBM Plex Mono",ui-monospace,monospace;
+      font-size: .88rem;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    .ok  { color: #065f46; }
+    .err { color: var(--danger); }
+
+    /* ── Cert warning banner ──────────────────────────────── */
+    .cert-warn {
+      margin-top: .9rem;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 10px;
+      padding: .7rem 1rem;
+      font-size: .83rem;
+      color: #713f12;
+      display: none;
+    }
+    .cert-warn strong { display: block; margin-bottom: .2rem; }
   </style>
 </head>
 <body>
   <main class="panel">
     <h1>Passkey-Sudo Security Gate</h1>
-    <p><span class="pulse"></span>Complete the biometric/passkey prompt from your browser or mobile device.</p>
-    <div id="status" class="status">Starting secure flow...</div>
-    <section class="mobile">
-      <h2>Mobile Passkey (QR)</h2>
-      <p id="mobile-msg">Preparing QR code...</p>
-      <img id="qr" alt="Scan QR code from your mobile" />
-      <small id="mobile-url"></small>
-    </section>
+    <p class="subtitle"><span class="pulse"></span>Complete the passkey prompt from your browser or mobile device.</p>
+    <div id="status" class="status">Starting secure flow…</div>
+    <div id="cert-warn" class="cert-warn">
+      <strong>⚠ Self-signed certificate</strong>
+      If your browser blocked the page, click <strong>Advanced → Proceed to site</strong> to continue.
+      This is expected for a local self-signed certificate — your data never leaves your network.
+    </div>
   </main>
 
+  <!-- ── QR widget — fixed bottom-left ─────────────────────── -->
+  <aside id="qr-widget" style="
+    position:fixed; bottom:1.4rem; left:1.4rem;
+    background:#fff; border-radius:16px;
+    padding:.75rem; box-shadow:0 4px 24px rgba(0,0,0,.18);
+    max-width:210px; display:none; animation:rise .5s ease;
+  ">
+    <p style="font-size:.78rem;font-weight:600;color:#0f172a;margin-bottom:.5rem;text-align:center;">
+      📱 Scan to enroll from phone
+    </p>
+    <img id="qr-img" alt="QR code"
+      style="width:180px;height:180px;border-radius:10px;border:1px solid #e2e8f0;display:block;" />
+    <p id="qr-url" style="
+      margin-top:.45rem; font-family:'IBM Plex Mono',monospace;
+      font-size:.68rem; color:#334155; word-break:break-all; text-align:center;
+    "></p>
+    <p style="font-size:.7rem;color:#64748b;margin-top:.3rem;text-align:center;">
+      Accept cert warning once on phone
+    </p>
+  </aside>
+
   <script>
-    const statusBox = document.getElementById('status');
-    const mobileMsg = document.getElementById('mobile-msg');
-    const mobileURL = document.getElementById('mobile-url');
-    const qr = document.getElementById('qr');
+    const statusBox  = document.getElementById('status');
+    const certWarn   = document.getElementById('cert-warn');
+    const qrWidget   = document.getElementById('qr-widget');
+    const qrImg      = document.getElementById('qr-img');
+    const qrUrlTxt   = document.getElementById('qr-url');
 
-    function setStatus(text, mode) {
+    function setStatus(text, cls) {
       statusBox.textContent = text;
-      statusBox.className = 'status';
-      if (mode) statusBox.classList.add(mode);
+      statusBox.className = 'status' + (cls ? ' ' + cls : '');
     }
 
+    // ── base64url helpers ─────────────────────────────────────
     function b64ToBuf(b64) {
-      const pad = '='.repeat((4 - b64.length % 4) % 4);
-      const base64 = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
-      const str = atob(base64);
-      const bytes = new Uint8Array(str.length);
-      for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i);
-      return bytes.buffer;
+      const pad  = '='.repeat((4 - b64.length % 4) % 4);
+      const base = (b64 + pad).replace(/-/g,'+').replace(/_/g,'/');
+      const str  = atob(base);
+      const buf  = new Uint8Array(str.length);
+      for (let i = 0; i < str.length; i++) buf[i] = str.charCodeAt(i);
+      return buf.buffer;
     }
-
     function bufToB64(buf) {
       const bytes = new Uint8Array(buf);
-      let str = '';
-      for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
-      return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+      let s = '';
+      bytes.forEach(b => s += String.fromCharCode(b));
+      return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
     }
-
-    function normalizeCreateRequest(publicKey) {
-      publicKey.challenge = b64ToBuf(publicKey.challenge);
-      publicKey.user.id = b64ToBuf(publicKey.user.id);
-      if (Array.isArray(publicKey.excludeCredentials)) {
-        publicKey.excludeCredentials = publicKey.excludeCredentials.map((item) => ({
-          ...item,
-          id: b64ToBuf(item.id),
-        }));
+    function normalizeCreate(pk) {
+      pk.challenge = b64ToBuf(pk.challenge);
+      pk.user.id   = b64ToBuf(pk.user.id);
+      (pk.excludeCredentials||[]).forEach(c => c.id = b64ToBuf(c.id));
+      return pk;
+    }
+    function normalizeGet(pk) {
+      pk.challenge = b64ToBuf(pk.challenge);
+      (pk.allowCredentials||[]).forEach(c => c.id = b64ToBuf(c.id));
+      return pk;
+    }
+    function credToJSON(cred) {
+      const resp = {};
+      for (const k of Object.keys(cred.response)) {
+        const v = cred.response[k];
+        resp[k] = (v instanceof ArrayBuffer || ArrayBuffer.isView(v))
+          ? bufToB64(v instanceof ArrayBuffer ? v : v.buffer)
+          : v;
       }
-      return publicKey;
+      return { id: cred.id, rawId: bufToB64(cred.rawId), type: cred.type, response: resp,
+               clientExtensionResults: cred.getClientExtensionResults() };
     }
 
-    function normalizeGetRequest(publicKey) {
-      publicKey.challenge = b64ToBuf(publicKey.challenge);
-      if (Array.isArray(publicKey.allowCredentials)) {
-        publicKey.allowCredentials = publicKey.allowCredentials.map((item) => ({
-          ...item,
-          id: b64ToBuf(item.id),
-        }));
-      }
-      return publicKey;
-    }
-
-    function credentialToJSON(cred) {
-      const response = {};
-      for (const key of Object.keys(cred.response)) {
-        const val = cred.response[key];
-        if (val instanceof ArrayBuffer) {
-          response[key] = bufToB64(val);
-        } else if (ArrayBuffer.isView(val)) {
-          response[key] = bufToB64(val.buffer);
-        }
-      }
-      return {
-        id: cred.id,
-        rawId: bufToB64(cred.rawId),
-        type: cred.type,
-        response,
-        clientExtensionResults: cred.getClientExtensionResults(),
-      };
-    }
-
-    async function start() {
+    // ── Load QR when mobile mode is active ───────────────────
+    async function loadQR() {
       try {
-        const metaResp = await fetch('/api/meta');
-        if (metaResp.ok) {
-          const meta = await metaResp.json();
-          if (meta.target_url) {
-            mobileURL.textContent = meta.target_url;
-          }
-          if (meta.mobile_ready) {
-            mobileMsg.textContent = 'Scan this QR from your phone to continue passkey flow.';
-            qr.src = '/qr.png';
-            qr.style.display = 'block';
-          } else {
-            mobileMsg.textContent = 'Mobile QR is disabled for localhost/loopback. Set rp-id and rp-origin to your laptop LAN IP/hostname first.';
-          }
+        const meta = await (await fetch('/api/meta')).json();
+        if (meta.mobile_ready && meta.mobile_url) {
+          qrImg.src   = '/qr.png';
+          qrUrlTxt.textContent = meta.mobile_url;
+          qrWidget.style.display = 'block';
+          certWarn.style.display = 'block';
         }
+      } catch (_) { /* ignore — QR is optional */ }
+    }
 
+    // ── Main ceremony ─────────────────────────────────────────
+    async function start() {
+      await loadQR();
+      try {
         const beginResp = await fetch('/api/begin', { method: 'POST' });
         const beginData = await beginResp.json();
-        if (!beginResp.ok) {
-          throw new Error(beginData.error || 'Unable to initialize challenge');
-        }
+        if (!beginResp.ok) throw new Error(beginData.error || 'Failed to initialise challenge');
 
         if (beginData.publicKey.user) {
-          beginData.publicKey = normalizeCreateRequest(beginData.publicKey);
-          setStatus('Touch your fingerprint sensor (registration in progress)...');
-          const credential = await navigator.credentials.create({ publicKey: beginData.publicKey });
-          const finishResp = await fetch('/api/finish', {
+          // ── Registration ──────────────────────────────────
+          normalizeCreate(beginData.publicKey);
+          setStatus('Touch your fingerprint sensor or use phone passkey (registration)…');
+          const cred = await navigator.credentials.create({ publicKey: beginData.publicKey });
+          const fin  = await fetch('/api/finish', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(credentialToJSON(credential)),
+            body:    JSON.stringify(credToJSON(cred)),
           });
-          const finishData = await finishResp.json();
-          if (!finishResp.ok) throw new Error(finishData.error || 'Enrollment failed');
-          setStatus('Passkey enrolled successfully. You can close this tab.', 'ok');
+          const finData = await fin.json();
+          if (!fin.ok) throw new Error(finData.error || 'Enrollment failed');
+          setStatus('✓ Passkey enrolled successfully. You can close this tab.', 'ok');
+          qrWidget.style.display = 'none';
           return;
         }
 
-        beginData.publicKey = normalizeGetRequest(beginData.publicKey);
-        setStatus('Touch your fingerprint sensor to authorize sudo command...');
+        // ── Authentication ────────────────────────────────────
+        normalizeGet(beginData.publicKey);
+        setStatus('Touch your fingerprint sensor to authorise the command…');
         const assertion = await navigator.credentials.get({ publicKey: beginData.publicKey });
-        const finishResp = await fetch('/api/finish', {
+        const fin = await fetch('/api/finish', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(credentialToJSON(assertion)),
+          body:    JSON.stringify(credToJSON(assertion)),
         });
-        const finishData = await finishResp.json();
-        if (!finishResp.ok) throw new Error(finishData.error || 'Verification failed');
-        setStatus('Authentication succeeded. Command is now allowed.', 'ok');
+        const finData = await fin.json();
+        if (!fin.ok) throw new Error(finData.error || 'Verification failed');
+        setStatus('✓ Authentication succeeded. Command is now allowed.', 'ok');
+        qrWidget.style.display = 'none';
+
       } catch (err) {
-        setStatus(`Error: ${err.message || err}`, 'err');
+        setStatus('Error: ' + (err.message || err), 'err');
       }
     }
 
     if (!window.PublicKeyCredential) {
-      setStatus('This browser does not support WebAuthn/Passkeys.', 'err');
+      setStatus('This browser does not support WebAuthn/Passkeys.\nTry Chrome, Safari, or Firefox on a supported OS.', 'err');
+      loadQR(); // still show QR so user can switch to phone
     } else {
       start();
     }

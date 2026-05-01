@@ -2,6 +2,7 @@ package webauthnserver
 
 import (
 	"context"
+	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -9,10 +10,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,12 +26,15 @@ import (
 //go:embed flow.html
 var embeddedFlowPage []byte
 
+// Mode controls whether this is a registration or authentication flow.
 type Mode string
 
 const (
 	ModeRegister Mode = "register"
 	ModeLogin    Mode = "login"
 )
+
+const defaultPort = "14141"
 
 type user struct {
 	cfg *config.Config
@@ -46,14 +48,8 @@ func (u user) WebAuthnID() []byte {
 	return []byte(u.cfg.UserID)
 }
 
-func (u user) WebAuthnName() string {
-	return u.cfg.Username
-}
-
-func (u user) WebAuthnDisplayName() string {
-	return u.cfg.Username
-}
-
+func (u user) WebAuthnName() string        { return u.cfg.Username }
+func (u user) WebAuthnDisplayName() string { return u.cfg.Username }
 func (u user) WebAuthnCredentials() []webauthnlib.Credential {
 	return u.cfg.Credentials
 }
@@ -61,7 +57,7 @@ func (u user) WebAuthnCredentials() []webauthnlib.Credential {
 type runner struct {
 	cfg       *config.Config
 	mode      Mode
-	targetURL string
+	mobileURL string
 	wa        *webauthnlib.WebAuthn
 	errCh     chan error
 	doneCh    chan struct{}
@@ -69,29 +65,71 @@ type runner struct {
 	session   *webauthnlib.SessionData
 }
 
+// Run starts the local WebAuthn HTTP(S) server. When a LAN IP is detected it
+// automatically generates a self-signed TLS certificate and serves HTTPS so
+// mobile devices can complete the WebAuthn ceremony (HTTP on non-localhost is
+// not a secure context and browsers will refuse WebAuthn).
 func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 	if mode == ModeLogin && len(cfg.Credentials) == 0 {
-		return errors.New("no passkey enrolled yet. run `passkey-sudo enroll` first")
+		return errors.New("no passkey enrolled yet — run `passkey-sudo enroll` first")
+	}
+
+	var (
+		listenAddr string
+		targetURL  string
+		mobileURL  string
+		tlsCert    *tls.Certificate
+		rpID       string
+		rpOrigin   string
+	)
+
+	lanIP := detectLANIP()
+
+	if lanIP != nil {
+		ipStr := lanIP.String()
+		cert, err := generateSelfSignedCert(
+			[]net.IP{lanIP, net.ParseIP("127.0.0.1"), net.IPv6loopback},
+			[]string{"localhost"},
+		)
+		if err == nil {
+			tlsCert = &cert
+			rpID = ipStr
+			rpOrigin = fmt.Sprintf("https://%s:%s", ipStr, defaultPort)
+			mobileURL = rpOrigin + "/"
+			listenAddr = "0.0.0.0:" + defaultPort
+			// Laptop opens via localhost so cert is trusted for "localhost" SAN.
+			targetURL = fmt.Sprintf("https://localhost:%s/", defaultPort)
+			// Persist so `passkey-sudo run` / `check` stay in sync.
+			if cfg.RPID != rpID || cfg.RPOrigin != rpOrigin {
+				cfg.RPID = rpID
+				cfg.RPOrigin = rpOrigin
+				_ = config.SaveDefault(cfg)
+			}
+		}
+	}
+
+	// Fallback: plain HTTP on localhost when no LAN or cert error.
+	if tlsCert == nil {
+		rpID = "localhost"
+		rpOrigin = fmt.Sprintf("http://localhost:%s", defaultPort)
+		listenAddr = "localhost:" + defaultPort
+		targetURL = rpOrigin + "/"
+		mobileURL = ""
 	}
 
 	wa, err := webauthnlib.New(&webauthnlib.Config{
 		RPDisplayName: cfg.RPDisplayName,
-		RPID:          cfg.RPID,
-		RPOrigins:     []string{cfg.RPOrigin},
+		RPID:          rpID,
+		RPOrigins:     []string{rpOrigin},
 	})
 	if err != nil {
 		return fmt.Errorf("init webauthn: %w", err)
 	}
 
-	listenAddr, targetURL, err := resolveAddress(cfg.RPOrigin)
-	if err != nil {
-		return err
-	}
-
 	r := &runner{
 		cfg:       cfg,
 		mode:      mode,
-		targetURL: targetURL,
+		mobileURL: mobileURL,
 		wa:        wa,
 		errCh:     make(chan error, 1),
 		doneCh:    make(chan struct{}, 1),
@@ -106,21 +144,28 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			r.errCh <- err
+	if tlsCert != nil {
+		srv.TLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{*tlsCert},
+			MinVersion:   tls.VersionTLS12,
 		}
-	}()
+		go func() {
+			if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				r.errCh <- err
+			}
+		}()
+		printMobileMode(targetURL, mobileURL, mode)
+	} else {
+		go func() {
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				r.errCh <- err
+			}
+		}()
+		fmt.Printf("Open %s to continue %s flow (laptop only)\n", targetURL, mode)
+	}
 
 	if cfg.OpenBrowserOnPrompt {
 		_ = execx.OpenBrowser(targetURL)
-	}
-
-	fmt.Printf("Open %s to continue %s flow\n", targetURL, mode)
-	if !isMobileReady(targetURL) {
-		fmt.Println("Tip: For mobile passkeys, use your laptop LAN IP/hostname as both rp-id and rp-origin host.")
-		fmt.Println("Example: passkey-sudo settings set rp-id 192.168.1.10")
-		fmt.Println("Example: passkey-sudo settings set rp-origin http://192.168.1.10:14141")
 	}
 
 	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -142,22 +187,18 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 	}
 }
 
-func resolveAddress(origin string) (listenAddr string, targetURL string, err error) {
-	u, err := url.Parse(origin)
-	if err != nil {
-		return "", "", fmt.Errorf("invalid rp-origin %q: %w", origin, err)
+func printMobileMode(laptopURL, mobileURL string, mode Mode) {
+	fmt.Println()
+	fmt.Println("  ┌─ Passkey-Sudo ───────────────────────────────────────────┐")
+	fmt.Printf("  │  Mode    : %s\n", mode)
+	fmt.Printf("  │  Laptop  : %s\n", laptopURL)
+	if mobileURL != "" {
+		fmt.Printf("  │  Mobile  : %s\n", mobileURL)
 	}
-	if u.Host == "" {
-		return "", "", fmt.Errorf("invalid rp-origin %q: missing host", origin)
-	}
-	if !strings.Contains(u.Host, ":") {
-		if u.Scheme == "https" {
-			u.Host += ":443"
-		} else {
-			u.Host += ":80"
-		}
-	}
-	return u.Host, strings.TrimRight(origin, "/") + "/", nil
+	fmt.Println("  │  ⚠  Self-signed cert — browser will show a security warning.")
+	fmt.Println("  │     Click  Advanced → Proceed  to continue (only needed once).")
+	fmt.Println("  └──────────────────────────────────────────────────────────┘")
+	fmt.Println()
 }
 
 func (r *runner) registerRoutes(mux *http.ServeMux) {
@@ -175,13 +216,17 @@ func (r *runner) handleIndex(w http.ResponseWriter, _ *http.Request) {
 
 func (r *runner) handleMeta(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"target_url":   r.targetURL,
-		"mobile_ready": isMobileReady(r.targetURL),
+		"mobile_url":   r.mobileURL,
+		"mobile_ready": r.mobileURL != "",
 	})
 }
 
 func (r *runner) handleQR(w http.ResponseWriter, _ *http.Request) {
-	png, err := qrcode.Encode(r.targetURL, qrcode.Medium, 256)
+	if r.mobileURL == "" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "QR not available in localhost mode"})
+		return
+	}
+	png, err := qrcode.Encode(r.mobileURL, qrcode.Medium, 280)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -193,14 +238,14 @@ func (r *runner) handleQR(w http.ResponseWriter, _ *http.Request) {
 
 func (r *runner) handleBegin(w http.ResponseWriter, _ *http.Request) {
 	u := user{cfg: r.cfg}
-	var (
-		opts interface{}
-		err  error
-	)
 
 	r.sessionMu.Lock()
 	defer r.sessionMu.Unlock()
 
+	var (
+		opts interface{}
+		err  error
+	)
 	switch r.mode {
 	case ModeRegister:
 		opts, r.session, err = r.wa.BeginRegistration(u)
@@ -222,7 +267,7 @@ func (r *runner) handleFinish(w http.ResponseWriter, req *http.Request) {
 	session := r.session
 	r.sessionMu.Unlock()
 	if session == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing session"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session missing — refresh the page"})
 		return
 	}
 
@@ -239,8 +284,7 @@ func (r *runner) handleFinish(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	case ModeLogin:
-		_, err := r.wa.FinishLogin(u, *session, req)
-		if err != nil {
+		if _, err := r.wa.FinishLogin(u, *session, req); err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
 			return
 		}
@@ -260,22 +304,4 @@ func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
-}
-
-func isMobileReady(target string) bool {
-	u, err := url.Parse(target)
-	if err != nil {
-		return false
-	}
-	host := u.Hostname()
-	if host == "" {
-		return false
-	}
-	if host == "localhost" {
-		return false
-	}
-	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-		return false
-	}
-	return true
 }
