@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.2] - 2026-05-02
+
+### Fixed
+
+- Fixed installer source fallback when latest release tag does not contain `cmd/passkey-sudo`
+- Added fallback build path from `master` branch source if release tag source is missing required files
+- Improved CI format check to validate tracked Go files directly and provide clearer output
+
 ## [0.2.1] - 2026-05-02
 
 ### Fixed
