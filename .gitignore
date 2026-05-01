@@ -1,0 +1,19 @@
+# Binaries
+bin/
+dist/
+passkey-sudo
+
+# Coverage
+coverage.out
+
+# Local config and caches
+.env
+*.log
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Go
+*.test
