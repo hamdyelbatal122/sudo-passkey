@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.11] - 2026-05-02
+
+### Fixed (0.2.11)
+
+- Fixed mobile WebAuthn root cause by requiring trusted HTTPS origin for phone flow
+- Added automatic trusted-origin discovery from running ngrok tunnel (`https` tunnel to `:14141`)
+- Removed misleading LAN-IP WebAuthn behavior that caused insecure-origin failures on mobile
+
+### Improved (0.2.11)
+
+- Added explicit mobile readiness hints in API/UI when trusted origin is unavailable
+- Kept localhost enrollment stable while auto-switching to trusted public origin when available
+
 ## [0.2.10] - 2026-05-02
 
 ### Fixed (0.2.10)

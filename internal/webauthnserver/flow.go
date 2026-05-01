@@ -2,7 +2,6 @@ package webauthnserver
 
 import (
 	"context"
-	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -61,12 +61,13 @@ func (u user) WebAuthnCredentials() []webauthnlib.Credential {
 }
 
 type servePlan struct {
-	listenAddr string
-	landingURL string
-	mobileURL  string
-	rpID       string
-	rpOrigin   string
-	cert       *tls.Certificate
+	listenAddr  string
+	landingURL  string
+	mobileURL   string
+	mobileReady bool
+	mobileHint  string
+	rpID        string
+	rpOrigin    string
 }
 
 type runner struct {
@@ -74,7 +75,7 @@ type runner struct {
 	mode       Mode
 	landingURL string
 	mobileURL  string
-	rpID       string
+	mobileHint string
 	wa         *webauthnlib.WebAuthn
 	errCh      chan error
 	doneCh     chan struct{}
@@ -98,7 +99,6 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		return fmt.Errorf("init webauthn: %w", err)
 	}
 
-	// Keep config aligned with active runtime host so future commands stay consistent.
 	if cfg.RPID != plan.rpID || cfg.RPOrigin != plan.rpOrigin {
 		cfg.RPID = plan.rpID
 		cfg.RPOrigin = plan.rpOrigin
@@ -110,7 +110,7 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		mode:       mode,
 		landingURL: plan.landingURL,
 		mobileURL:  plan.mobileURL,
-		rpID:       plan.rpID,
+		mobileHint: plan.mobileHint,
 		wa:         wa,
 		errCh:      make(chan error, 1),
 		doneCh:     make(chan struct{}, 1),
@@ -125,27 +125,17 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	if plan.cert != nil {
-		srv.TLSConfig = &tls.Config{
-			Certificates: []tls.Certificate{*plan.cert},
-			MinVersion:   tls.VersionTLS12,
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			r.errCh <- err
 		}
-		go func() {
-			if err := srv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				r.errCh <- err
-			}
-		}()
-		fmt.Printf("Open %s to continue %s flow\n", plan.landingURL, mode)
+	}()
+
+	fmt.Printf("Open %s to continue %s flow\n", plan.landingURL, mode)
+	if plan.mobileReady {
 		fmt.Printf("Mobile QR target: %s\n", plan.mobileURL)
-		fmt.Println("Note: this LAN TLS mode is experimental and may fail if certificate is not trusted.")
 	} else {
-		go func() {
-			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				r.errCh <- err
-			}
-		}()
-		fmt.Printf("Open %s to continue %s flow (localhost mode)\n", plan.landingURL, mode)
-		fmt.Println("Tip: use browser passkey option 'use a phone or tablet' for cross-device enrollment.")
+		fmt.Printf("Mobile mode: %s\n", plan.mobileHint)
 	}
 
 	if cfg.OpenBrowserOnPrompt {
@@ -172,56 +162,104 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 }
 
 func buildServePlan() servePlan {
-	if os.Getenv("PASSKEY_SUDO_ENABLE_LAN_TLS") != "1" {
-		lanIP := detectLANIP()
-		fallbackOrigin := "http://localhost:" + defaultPort
-		mobileURL := ""
-		listenAddr := "localhost:" + defaultPort
-		if lanIP != nil {
-			ipStr := lanIP.String()
-			// Expose the same flow page on LAN for QR scanning from phone.
-			mobileURL = "http://" + ipStr + ":" + defaultPort + "/"
-			listenAddr = "0.0.0.0:" + defaultPort
-		}
-		return servePlan{
-			listenAddr: listenAddr,
-			landingURL: fallbackOrigin + "/",
-			mobileURL:  mobileURL,
-			rpID:       "localhost",
-			rpOrigin:   fallbackOrigin,
-			cert:       nil,
-		}
+	localhostOrigin := "http://localhost:" + defaultPort
+	plan := servePlan{
+		listenAddr:  "0.0.0.0:" + defaultPort,
+		landingURL:  localhostOrigin + "/",
+		mobileURL:   "",
+		mobileReady: false,
+		mobileHint:  "mobile WebAuthn needs trusted HTTPS origin. Start ngrok or set PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN",
+		rpID:        "localhost",
+		rpOrigin:    localhostOrigin,
 	}
 
-	lanIP := detectLANIP()
-	if lanIP != nil {
-		ipStr := lanIP.String()
-		cert, err := generateSelfSignedCert(
-			[]net.IP{lanIP, net.ParseIP("127.0.0.1"), net.IPv6loopback},
-			[]string{"localhost"},
-		)
-		if err == nil {
-			rpOrigin := "https://" + ipStr + ":" + defaultPort
-			return servePlan{
-				listenAddr: "0.0.0.0:" + defaultPort,
-				landingURL: rpOrigin + "/",
-				mobileURL:  rpOrigin + "/",
-				rpID:       ipStr,
-				rpOrigin:   rpOrigin,
-				cert:       &cert,
-			}
+	origin, hint := detectTrustedPublicOrigin()
+	if origin == "" {
+		if hint != "" {
+			plan.mobileHint = hint
 		}
+		return plan
 	}
 
-	fallbackOrigin := "http://localhost:" + defaultPort
-	return servePlan{
-		listenAddr: "localhost:" + defaultPort,
-		landingURL: fallbackOrigin + "/",
-		mobileURL:  "",
-		rpID:       "localhost",
-		rpOrigin:   fallbackOrigin,
-		cert:       nil,
+	u, err := url.Parse(origin)
+	if err != nil {
+		return plan
 	}
+	host := u.Hostname()
+	if host == "" {
+		return plan
+	}
+	plan.landingURL = strings.TrimRight(origin, "/") + "/"
+	plan.mobileURL = plan.landingURL
+	plan.mobileReady = true
+	plan.mobileHint = "trusted HTTPS origin active"
+	plan.rpID = host
+	plan.rpOrigin = strings.TrimRight(origin, "/")
+	return plan
+}
+
+func detectTrustedPublicOrigin() (string, string) {
+	if env := strings.TrimSpace(os.Getenv("PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN")); env != "" {
+		u, err := url.Parse(env)
+		if err != nil {
+			return "", "PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN is invalid URL"
+		}
+		if u.Scheme != "https" || !isPublicHost(u.Hostname()) {
+			return "", "PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN must be HTTPS with non-local host"
+		}
+		return strings.TrimRight(env, "/"), ""
+	}
+
+	origin, err := detectNgrokHTTPSOrigin()
+	if err == nil && origin != "" {
+		return origin, ""
+	}
+	return "", "no trusted public HTTPS origin detected (ngrok not running)"
+}
+
+func detectNgrokHTTPSOrigin() (string, error) {
+	client := &http.Client{Timeout: 900 * time.Millisecond}
+	resp, err := client.Get("http://127.0.0.1:4040/api/tunnels")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("ngrok api status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Tunnels []struct {
+			PublicURL string `json:"public_url"`
+			Proto     string `json:"proto"`
+			Config    struct {
+				Addr string `json:"addr"`
+			} `json:"config"`
+		} `json:"tunnels"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	for _, t := range payload.Tunnels {
+		if !strings.HasPrefix(t.PublicURL, "https://") {
+			continue
+		}
+		addr := strings.ToLower(t.Config.Addr)
+		if strings.Contains(addr, ":14141") || strings.Contains(addr, "localhost:14141") || strings.Contains(addr, "127.0.0.1:14141") {
+			return strings.TrimRight(t.PublicURL, "/"), nil
+		}
+	}
+	return "", errors.New("no https tunnel for :14141")
+}
+
+func isPublicHost(host string) bool {
+	if host == "" || host == "localhost" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return !ip.IsLoopback() && !ip.IsPrivate()
+	}
+	return true
 }
 
 func (r *runner) registerRoutes(mux *http.ServeMux) {
@@ -232,90 +270,9 @@ func (r *runner) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/finish", r.handleFinish)
 }
 
-func (r *runner) handleIndex(w http.ResponseWriter, req *http.Request) {
-	if r.rpID == "localhost" && isLocalClientRequest(req) && !isLocalHost(req.Host) {
-		http.Redirect(w, req, r.landingURL, http.StatusTemporaryRedirect)
-		return
-	}
-	if r.mobileURL != "" && shouldRedirectToRPHost(req.Host, r.rpID) {
-		http.Redirect(w, req, r.mobileURL, http.StatusTemporaryRedirect)
-		return
-	}
+func (r *runner) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(embeddedFlowPage)
-}
-
-func isLocalClientRequest(req *http.Request) bool {
-	host, _, err := net.SplitHostPort(req.RemoteAddr)
-	if err != nil {
-		host = req.RemoteAddr
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return false
-	}
-	if ip.IsLoopback() {
-		return true
-	}
-
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return false
-	}
-	for _, iface := range ifaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				if v.IP.Equal(ip) {
-					return true
-				}
-			case *net.IPAddr:
-				if v.IP.Equal(ip) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func isLocalHost(hostPort string) bool {
-	host := hostPort
-	if strings.Contains(hostPort, ":") {
-		if h, _, err := net.SplitHostPort(hostPort); err == nil {
-			host = h
-		}
-	}
-	if host == "localhost" {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback()
-	}
-	return false
-}
-
-func shouldRedirectToRPHost(hostPort string, rpID string) bool {
-	if rpID == "localhost" {
-		return false
-	}
-	host := hostPort
-	if strings.Contains(hostPort, ":") {
-		if h, _, err := net.SplitHostPort(hostPort); err == nil {
-			host = h
-		}
-	}
-	if host == "localhost" {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-		return true
-	}
-	return host != rpID
 }
 
 func (r *runner) handleMeta(w http.ResponseWriter, _ *http.Request) {
@@ -323,12 +280,13 @@ func (r *runner) handleMeta(w http.ResponseWriter, _ *http.Request) {
 		"landing_url":  r.landingURL,
 		"mobile_url":   r.mobileURL,
 		"mobile_ready": r.mobileURL != "",
+		"mobile_hint":  r.mobileHint,
 	})
 }
 
 func (r *runner) handleQR(w http.ResponseWriter, _ *http.Request) {
 	if r.mobileURL == "" {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "QR not available in localhost mode"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "trusted mobile URL not available"})
 		return
 	}
 	png, err := qrcode.Encode(r.mobileURL, qrcode.Medium, 256)
