@@ -34,11 +34,17 @@ See docs/sudoers.example.
 
 ## Installation
 
+### One-line installer (Linux/macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/main/scripts/install.sh | bash
+```
+
 ### From source
 
 ```bash
-git clone https://github.com/hamdy/passkey-sudo.git
-cd passkey-sudo
+git clone https://github.com/hamdyelbatal122/sudo-passkey.git
+cd sudo-passkey
 make build
 sudo install -m 0755 bin/passkey-sudo /usr/local/bin/passkey-sudo
 ```
@@ -57,6 +63,33 @@ passkey-sudo init
 passkey-sudo enroll
 passkey-sudo check
 passkey-sudo run -- systemctl restart nginx
+```
+
+## Easy customization
+
+### Manage passkeys
+
+```bash
+passkey-sudo passkey add
+passkey-sudo passkey list
+passkey-sudo passkey remove 1
+```
+
+### Manage allowed commands
+
+```bash
+passkey-sudo allow add /usr/bin/systemctl
+passkey-sudo allow list
+passkey-sudo allow remove /usr/bin/systemctl
+```
+
+### Manage settings from CLI
+
+```bash
+passkey-sudo settings show
+passkey-sudo settings set username my-admin
+passkey-sudo settings set open-browser false
+passkey-sudo settings set sudo-non-interactive true
 ```
 
 ## Configuration
@@ -87,6 +120,10 @@ Default shape:
 ```text
 passkey-sudo init [--rp-id localhost --rp-origin http://127.0.0.1:14141 --rp-name Passkey-Sudo --username local-admin]
 passkey-sudo enroll
+passkey-sudo add-passkey
+passkey-sudo passkey <add|list|remove>
+passkey-sudo allow <list|add|remove>
+passkey-sudo settings <show|set>
 passkey-sudo check
 passkey-sudo run -- <command> [args...]
 passkey-sudo version

@@ -1,4 +1,4 @@
-module github.com/hamdy/passkey-sudo
+module github.com/hamdyelbatal122/sudo-passkey
 
 go 1.23
 
