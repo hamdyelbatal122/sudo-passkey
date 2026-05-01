@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.1] - 2026-05-02
+
+### Fixed
+
+- Fixed one-line installer 404 by ensuring both `main` and `master` branch raw URLs work
+- Updated CI workflow triggers to support both `main` and `master`
+- Added manual trigger support to the release workflow
+
 ## [0.2.0] - 2026-05-02
 
 ### Added
