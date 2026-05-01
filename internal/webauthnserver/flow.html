@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Passkey-Sudo Security Gate</title>
+  <style>
+    :root {
+      --bg-1: #0a2029;
+      --bg-2: #133b49;
+      --card: rgba(248, 250, 252, 0.95);
+      --text: #0f172a;
+      --accent: #0ea5a4;
+      --danger: #be123c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 20%, #1d4ed8 0%, transparent 50%),
+        radial-gradient(circle at 90% 80%, #0ea5a4 0%, transparent 45%),
+        linear-gradient(140deg, var(--bg-1), var(--bg-2));
+      padding: 1rem;
+    }
+    .panel {
+      width: min(680px, 100%);
+      background: var(--card);
+      border-radius: 20px;
+      padding: 1.3rem 1.2rem;
+      box-shadow: 0 20px 65px rgba(2, 8, 23, 0.35);
+      animation: rise .45s ease;
+    }
+    h1 { margin: 0 0 .5rem; font-size: clamp(1.3rem, 3vw, 2rem); letter-spacing: .01em; }
+    p { margin: .4rem 0; line-height: 1.5; }
+    .status {
+      margin-top: .8rem;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      border-radius: 12px;
+      padding: .9rem;
+      min-height: 3rem;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      white-space: pre-wrap;
+    }
+    .ok { color: #065f46; }
+    .err { color: var(--danger); }
+    .pulse {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: inline-block;
+      margin-right: .5rem;
+      animation: pulse 1.15s infinite;
+      vertical-align: middle;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+    @keyframes rise {
+      from { transform: translateY(12px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <h1>Passkey-Sudo Security Gate</h1>
+    <p><span class="pulse"></span>Complete the biometric/passkey prompt from your browser or mobile device.</p>
+    <div id="status" class="status">Starting secure flow...</div>
+  </main>
+
+  <script>
+    const statusBox = document.getElementById('status');
+
+    function setStatus(text, mode) {
+      statusBox.textContent = text;
+      statusBox.className = 'status';
+      if (mode) statusBox.classList.add(mode);
+    }
+
+    function b64ToBuf(b64) {
+      const pad = '='.repeat((4 - b64.length % 4) % 4);
+      const base64 = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+      const str = atob(base64);
+      const bytes = new Uint8Array(str.length);
+      for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i);
+      return bytes.buffer;
+    }
+
+    function bufToB64(buf) {
+      const bytes = new Uint8Array(buf);
+      let str = '';
+      for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+      return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+
+    function normalizeCreateRequest(publicKey) {
+      publicKey.challenge = b64ToBuf(publicKey.challenge);
+      publicKey.user.id = b64ToBuf(publicKey.user.id);
+      if (Array.isArray(publicKey.excludeCredentials)) {
+        publicKey.excludeCredentials = publicKey.excludeCredentials.map((item) => ({
+          ...item,
+          id: b64ToBuf(item.id),
+        }));
+      }
+      return publicKey;
+    }
+
+    function normalizeGetRequest(publicKey) {
+      publicKey.challenge = b64ToBuf(publicKey.challenge);
+      if (Array.isArray(publicKey.allowCredentials)) {
+        publicKey.allowCredentials = publicKey.allowCredentials.map((item) => ({
+          ...item,
+          id: b64ToBuf(item.id),
+        }));
+      }
+      return publicKey;
+    }
+
+    function credentialToJSON(cred) {
+      const response = {};
+      for (const key of Object.keys(cred.response)) {
+        const val = cred.response[key];
+        if (val instanceof ArrayBuffer) {
+          response[key] = bufToB64(val);
+        } else if (ArrayBuffer.isView(val)) {
+          response[key] = bufToB64(val.buffer);
+        }
+      }
+      return {
+        id: cred.id,
+        rawId: bufToB64(cred.rawId),
+        type: cred.type,
+        response,
+        clientExtensionResults: cred.getClientExtensionResults(),
+      };
+    }
+
+    async function start() {
+      try {
+        const beginResp = await fetch('/api/begin', { method: 'POST' });
+        const beginData = await beginResp.json();
+        if (!beginResp.ok) {
+          throw new Error(beginData.error || 'Unable to initialize challenge');
+        }
+
+        if (beginData.publicKey.user) {
+          beginData.publicKey = normalizeCreateRequest(beginData.publicKey);
+          setStatus('Touch your fingerprint sensor (registration in progress)...');
+          const credential = await navigator.credentials.create({ publicKey: beginData.publicKey });
+          const finishResp = await fetch('/api/finish', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(credentialToJSON(credential)),
+          });
+          const finishData = await finishResp.json();
+          if (!finishResp.ok) throw new Error(finishData.error || 'Enrollment failed');
+          setStatus('Passkey enrolled successfully. You can close this tab.', 'ok');
+          return;
+        }
+
+        beginData.publicKey = normalizeGetRequest(beginData.publicKey);
+        setStatus('Touch your fingerprint sensor to authorize sudo command...');
+        const assertion = await navigator.credentials.get({ publicKey: beginData.publicKey });
+        const finishResp = await fetch('/api/finish', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(credentialToJSON(assertion)),
+        });
+        const finishData = await finishResp.json();
+        if (!finishResp.ok) throw new Error(finishData.error || 'Verification failed');
+        setStatus('Authentication succeeded. Command is now allowed.', 'ok');
+      } catch (err) {
+        setStatus(`Error: ${err.message || err}`, 'err');
+      }
+    }
+
+    if (!window.PublicKeyCredential) {
+      setStatus('This browser does not support WebAuthn/Passkeys.', 'err');
+    } else {
+      start();
+    }
+  </script>
+</body>
+</html>

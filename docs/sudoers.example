@@ -1,0 +1,11 @@
+# Example sudoers policy for Passkey-Sudo
+# Edit using: sudo visudo
+
+# Allow only specific commands without password.
+# Passkey-Sudo acts as the biometric gate before execution.
+
+# Replace 'hamdy' with your local user.
+hamdy ALL=(ALL:ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/apt, /usr/bin/apt-get
+
+# Optional: strict mode for a single service restart command via wrapper script.
+# hamdy ALL=(ALL:ALL) NOPASSWD: /usr/local/bin/restart-nginx
