@@ -22,7 +22,15 @@ jobs:
         run: go mod tidy
 
       - name: Format check
-        run: test -z "$(gofmt -l ./cmd ./internal)"
+        run: |
+          dirs=()
+          [[ -d ./cmd ]] && dirs+=(./cmd)
+          [[ -d ./internal ]] && dirs+=(./internal)
+          if [[ ${#dirs[@]} -eq 0 ]]; then
+            echo "No Go source directories found"
+            exit 1
+          fi
+          test -z "$(gofmt -l "${dirs[@]}")"
 
       - name: Vet
         run: go vet ./...
