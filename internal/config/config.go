@@ -5,8 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
@@ -14,6 +17,8 @@ import (
 const (
 	configDirName  = "passkey-sudo"
 	configFileName = "config.json"
+	defaultRPID    = "localhost"
+	defaultOrigin  = "http://localhost:14141"
 )
 
 type Config struct {
@@ -39,9 +44,22 @@ func DefaultPath() string {
 
 func LoadOrInitDefault() (*Config, error) {
 	if _, err := os.Stat(DefaultPath()); err == nil {
-		return Load(DefaultPath())
+		cfg, err := Load(DefaultPath())
+		if err != nil {
+			return nil, err
+		}
+		changed, err := normalizeWebAuthnDomain(cfg)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			if err := SaveDefault(cfg); err != nil {
+				return nil, err
+			}
+		}
+		return cfg, nil
 	}
-	return Init("localhost", "http://127.0.0.1:14141", "Passkey-Sudo", "local-admin")
+	return Init(defaultRPID, defaultOrigin, "Passkey-Sudo", "local-admin")
 }
 
 func Init(rpID, rpOrigin, rpName, username string) (*Config, error) {
@@ -63,6 +81,10 @@ func Init(rpID, rpOrigin, rpName, username string) (*Config, error) {
 			cfg.Credentials = existing.Credentials
 			cfg.AllowedCommands = existing.AllowedCommands
 		}
+	}
+
+	if _, err := normalizeWebAuthnDomain(cfg); err != nil {
+		return nil, err
 	}
 
 	if err := Save(DefaultPath(), cfg); err != nil {
@@ -98,7 +120,69 @@ func Save(path string, cfg *Config) error {
 }
 
 func SaveDefault(cfg *Config) error {
+	if _, err := normalizeWebAuthnDomain(cfg); err != nil {
+		return err
+	}
 	return Save(DefaultPath(), cfg)
+}
+
+func normalizeWebAuthnDomain(cfg *Config) (bool, error) {
+	changed := false
+
+	if strings.TrimSpace(cfg.RPOrigin) == "" {
+		cfg.RPOrigin = defaultOrigin
+		changed = true
+	}
+
+	u, err := url.Parse(cfg.RPOrigin)
+	if err != nil {
+		return changed, fmt.Errorf("invalid rp-origin %q: %w", cfg.RPOrigin, err)
+	}
+	if u.Scheme == "" {
+		u.Scheme = "http"
+		changed = true
+	}
+	if u.Host == "" {
+		u.Host = defaultRPID + ":14141"
+		changed = true
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		host = defaultRPID
+	}
+
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		host = defaultRPID
+		changed = true
+	}
+
+	if strings.TrimSpace(cfg.RPID) == "" || cfg.RPID != host {
+		cfg.RPID = host
+		changed = true
+	}
+
+	if u.Hostname() != host {
+		port := u.Port()
+		if port != "" {
+			u.Host = net.JoinHostPort(host, port)
+		} else {
+			u.Host = host
+		}
+		changed = true
+	}
+
+	if u.Path == "" {
+		u.Path = "/"
+	}
+
+	normalized := strings.TrimRight(u.String(), "/")
+	if normalized != cfg.RPOrigin {
+		cfg.RPOrigin = normalized
+		changed = true
+	}
+
+	return changed, nil
 }
 
 func randomUserID() string {

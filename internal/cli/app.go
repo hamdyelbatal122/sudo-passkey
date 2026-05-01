@@ -268,7 +268,7 @@ func runInit(args []string) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder))
 	rpID := fs.String("rp-id", "localhost", "Relying Party ID")
-	rpOrigin := fs.String("rp-origin", "http://127.0.0.1:14141", "Relying Party origin")
+	rpOrigin := fs.String("rp-origin", "http://localhost:14141", "Relying Party origin")
 	rpName := fs.String("rp-name", "Passkey-Sudo", "Relying Party display name")
 	username := fs.String("username", "local-admin", "Display username for passkey registration")
 	if err := fs.Parse(args); err != nil {
@@ -383,7 +383,7 @@ func printUsage() {
 	fmt.Println("Passkey-Sudo (The Security Gate)")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  passkey-sudo init [--rp-id localhost --rp-origin http://127.0.0.1:14141 --rp-name Passkey-Sudo --username local-admin]")
+	fmt.Println("  passkey-sudo init [--rp-id localhost --rp-origin http://localhost:14141 --rp-name Passkey-Sudo --username local-admin]")
 	fmt.Println("  passkey-sudo enroll")
 	fmt.Println("  passkey-sudo add-passkey")
 	fmt.Println("  passkey-sudo passkey <add|list|remove>")
