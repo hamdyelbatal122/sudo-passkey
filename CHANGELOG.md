@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.6] - 2026-05-02
+
+### Fixed (0.2.6)
+
+- Fixed WebAuthn error: "The relying party ID is not a registrable domain suffix of, nor equal to the current domain"
+- Enforced single host identity for ceremony by using LAN IP as both `rp_id` and `rp_origin` in mobile mode
+- Added automatic redirect from `localhost`/loopback requests to active RP host URL to prevent host mismatch
+- Kept QR hidden when page is opened from a mobile device
+
+### Improved (0.2.6)
+
+- Auto-persisted active runtime RP settings to config for consistent `enroll`, `check`, and `run` behavior
+- Mobile QR target now always matches active RP host used by backend session
+
 ## [0.2.5] - 2026-05-02
 
 ### Added (0.2.5)

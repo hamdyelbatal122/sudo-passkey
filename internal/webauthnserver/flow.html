@@ -106,7 +106,7 @@
     max-width:210px; display:none; animation:rise .5s ease;
   ">
     <p style="font-size:.78rem;font-weight:600;color:#0f172a;margin-bottom:.5rem;text-align:center;">
-      📱 Scan to enroll from phone
+       Scan to enroll from phone
     </p>
     <img id="qr-img" alt="QR code"
       style="width:180px;height:180px;border-radius:10px;border:1px solid #e2e8f0;display:block;" />
@@ -125,6 +125,13 @@
     const qrWidget   = document.getElementById('qr-widget');
     const qrImg      = document.getElementById('qr-img');
     const qrUrlTxt   = document.getElementById('qr-url');
+
+    function isMobileClient() {
+      const ua = navigator.userAgent || '';
+      const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const compactScreen = window.matchMedia('(max-width: 900px)').matches;
+      return mobileUA || compactScreen;
+    }
 
     function setStatus(text, cls) {
       statusBox.textContent = text;
@@ -173,11 +180,13 @@
     async function loadQR() {
       try {
         const meta = await (await fetch('/api/meta')).json();
-        if (meta.mobile_ready && meta.mobile_url) {
+        if (meta.mobile_ready && meta.mobile_url && !isMobileClient()) {
           qrImg.src   = '/qr.png';
           qrUrlTxt.textContent = meta.mobile_url;
           qrWidget.style.display = 'block';
           certWarn.style.display = 'block';
+        } else {
+          qrWidget.style.display = 'none';
         }
       } catch (_) { /* ignore — QR is optional */ }
     }
