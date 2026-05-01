@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${1:-https://github.com/hamdy/passkey-sudo.git}"
+REPO="${1:-https://github.com/hamdyelbatal122/sudo-passkey.git}"
 WORKDIR="${TMPDIR:-/tmp}/passkey-sudo-install"
 
 rm -rf "$WORKDIR"

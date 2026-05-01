@@ -18,8 +18,8 @@ import (
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 
-	"github.com/hamdy/passkey-sudo/internal/config"
-	"github.com/hamdy/passkey-sudo/internal/execx"
+	"github.com/hamdyelbatal122/sudo-passkey/internal/config"
+	"github.com/hamdyelbatal122/sudo-passkey/internal/execx"
 )
 
 //go:embed flow.html

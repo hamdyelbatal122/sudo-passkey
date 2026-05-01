@@ -97,6 +97,10 @@ func Save(path string, cfg *Config) error {
 	return nil
 }
 
+func SaveDefault(cfg *Config) error {
+	return Save(DefaultPath(), cfg)
+}
+
 func randomUserID() string {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
