@@ -64,6 +64,7 @@ type servePlan struct {
 	listenAddr string
 	landingURL string
 	mobileURL  string
+	mobilePage string
 	rpID       string
 	rpOrigin   string
 	cert       *tls.Certificate
@@ -173,11 +174,21 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 
 func buildServePlan() servePlan {
 	if os.Getenv("PASSKEY_SUDO_ENABLE_LAN_TLS") != "1" {
+		lanIP := detectLANIP()
 		fallbackOrigin := "http://localhost:" + defaultPort
+		mobileURL := ""
+		listenAddr := "localhost:" + defaultPort
+		if lanIP != nil {
+			ipStr := lanIP.String()
+			// Expose helper page on LAN while keeping WebAuthn ceremony on trusted localhost origin.
+			mobileURL = "http://" + ipStr + ":" + defaultPort + "/mobile"
+			listenAddr = "0.0.0.0:" + defaultPort
+		}
 		return servePlan{
-			listenAddr: "localhost:" + defaultPort,
+			listenAddr: listenAddr,
 			landingURL: fallbackOrigin + "/",
-			mobileURL:  "",
+			mobileURL:  mobileURL,
+			mobilePage: mobileURL,
 			rpID:       "localhost",
 			rpOrigin:   fallbackOrigin,
 			cert:       nil,
@@ -197,6 +208,7 @@ func buildServePlan() servePlan {
 				listenAddr: "0.0.0.0:" + defaultPort,
 				landingURL: rpOrigin + "/",
 				mobileURL:  rpOrigin + "/",
+				mobilePage: rpOrigin + "/",
 				rpID:       ipStr,
 				rpOrigin:   rpOrigin,
 				cert:       &cert,
@@ -209,6 +221,7 @@ func buildServePlan() servePlan {
 		listenAddr: "localhost:" + defaultPort,
 		landingURL: fallbackOrigin + "/",
 		mobileURL:  "",
+		mobilePage: "",
 		rpID:       "localhost",
 		rpOrigin:   fallbackOrigin,
 		cert:       nil,
@@ -217,6 +230,7 @@ func buildServePlan() servePlan {
 
 func (r *runner) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/", r.handleIndex)
+	mux.HandleFunc("/mobile", r.handleMobileHelp)
 	mux.HandleFunc("/api/meta", r.handleMeta)
 	mux.HandleFunc("/qr.png", r.handleQR)
 	mux.HandleFunc("/api/begin", r.handleBegin)
@@ -224,6 +238,10 @@ func (r *runner) registerRoutes(mux *http.ServeMux) {
 }
 
 func (r *runner) handleIndex(w http.ResponseWriter, req *http.Request) {
+	if r.rpID == "localhost" && isNonLocalRequest(req.Host) {
+		http.Redirect(w, req, "/mobile", http.StatusTemporaryRedirect)
+		return
+	}
 	if r.mobileURL != "" && shouldRedirectToRPHost(req.Host, r.rpID) {
 		http.Redirect(w, req, r.mobileURL, http.StatusTemporaryRedirect)
 		return
@@ -232,7 +250,24 @@ func (r *runner) handleIndex(w http.ResponseWriter, req *http.Request) {
 	_, _ = w.Write(embeddedFlowPage)
 }
 
+func (r *runner) handleMobileHelp(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Passkey-Sudo Mobile Helper</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:20px;line-height:1.6;background:#f8fafc;color:#0f172a}main{max-width:720px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px}h1{font-size:1.2rem;margin:0 0 .5rem}code{background:#f1f5f9;padding:2px 6px;border-radius:6px}</style>
+</head><body><main>
+<h1>Use Phone As Passkey</h1>
+<p>This page confirms LAN access is working.</p>
+<p>For secure WebAuthn enrollment, continue on your laptop at <code>http://localhost:14141/</code> and choose <strong>Use a phone or tablet</strong> in the browser passkey prompt.</p>
+<p>The browser will show an official secure QR flow for your phone automatically.</p>
+</main></body></html>`))
+}
+
 func shouldRedirectToRPHost(hostPort string, rpID string) bool {
+	if rpID == "localhost" {
+		return false
+	}
 	host := hostPort
 	if strings.Contains(hostPort, ":") {
 		if h, _, err := net.SplitHostPort(hostPort); err == nil {
@@ -246,6 +281,22 @@ func shouldRedirectToRPHost(hostPort string, rpID string) bool {
 		return true
 	}
 	return host != rpID
+}
+
+func isNonLocalRequest(hostPort string) bool {
+	host := hostPort
+	if strings.Contains(hostPort, ":") {
+		if h, _, err := net.SplitHostPort(hostPort); err == nil {
+			host = h
+		}
+	}
+	if host == "localhost" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return false
+	}
+	return true
 }
 
 func (r *runner) handleMeta(w http.ResponseWriter, _ *http.Request) {

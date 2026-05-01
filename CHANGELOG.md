@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.8] - 2026-05-02
+
+### Fixed (0.2.8)
+
+- Restored bottom-left QR visibility on desktop in default localhost mode
+- Made LAN URL reachable from mobile by binding helper mode on `0.0.0.0:14141` when LAN IP exists
+- Redirected non-local hosts to a dedicated mobile helper page to avoid WebAuthn domain errors
+
+### Improved (0.2.8)
+
+- Kept actual WebAuthn ceremony on trusted localhost origin while still providing mobile-accessible guidance page
+- Clarified QR purpose in UI (opens phone helper page on LAN)
+
 ## [0.2.7] - 2026-05-02
 
 ### Fixed (0.2.7)
