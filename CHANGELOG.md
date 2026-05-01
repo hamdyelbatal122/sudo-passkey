@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.9] - 2026-05-02
+
+### Fixed (0.2.9)
+
+- Removed separate mobile helper page from QR flow
+- QR now opens the same WebAuthn flow page path (`/`) on phone and laptop
+- Updated UI copy to reflect same-page QR behavior
+
 ## [0.2.8] - 2026-05-02
 
 ### Fixed (0.2.8)
