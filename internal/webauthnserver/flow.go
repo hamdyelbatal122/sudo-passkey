@@ -2,10 +2,12 @@ package webauthnserver
 
 import (
 	"context"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,9 +16,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	_ "embed"
 
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
+	qrcode "github.com/skip2/go-qrcode"
 
 	"github.com/hamdyelbatal122/sudo-passkey/internal/config"
 	"github.com/hamdyelbatal122/sudo-passkey/internal/execx"
@@ -59,6 +61,7 @@ func (u user) WebAuthnCredentials() []webauthnlib.Credential {
 type runner struct {
 	cfg       *config.Config
 	mode      Mode
+	targetURL string
 	wa        *webauthnlib.WebAuthn
 	errCh     chan error
 	doneCh    chan struct{}
@@ -80,17 +83,18 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		return fmt.Errorf("init webauthn: %w", err)
 	}
 
-	r := &runner{
-		cfg:    cfg,
-		mode:   mode,
-		wa:     wa,
-		errCh:  make(chan error, 1),
-		doneCh: make(chan struct{}, 1),
-	}
-
 	listenAddr, targetURL, err := resolveAddress(cfg.RPOrigin)
 	if err != nil {
 		return err
+	}
+
+	r := &runner{
+		cfg:       cfg,
+		mode:      mode,
+		targetURL: targetURL,
+		wa:        wa,
+		errCh:     make(chan error, 1),
+		doneCh:    make(chan struct{}, 1),
 	}
 
 	mux := http.NewServeMux()
@@ -113,6 +117,11 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 	}
 
 	fmt.Printf("Open %s to continue %s flow\n", targetURL, mode)
+	if !isMobileReady(targetURL) {
+		fmt.Println("Tip: For mobile passkeys, use your laptop LAN IP/hostname as both rp-id and rp-origin host.")
+		fmt.Println("Example: passkey-sudo settings set rp-id 192.168.1.10")
+		fmt.Println("Example: passkey-sudo settings set rp-origin http://192.168.1.10:14141")
+	}
 
 	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -153,6 +162,8 @@ func resolveAddress(origin string) (listenAddr string, targetURL string, err err
 
 func (r *runner) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/", r.handleIndex)
+	mux.HandleFunc("/api/meta", r.handleMeta)
+	mux.HandleFunc("/qr.png", r.handleQR)
 	mux.HandleFunc("/api/begin", r.handleBegin)
 	mux.HandleFunc("/api/finish", r.handleFinish)
 }
@@ -160,6 +171,24 @@ func (r *runner) registerRoutes(mux *http.ServeMux) {
 func (r *runner) handleIndex(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(embeddedFlowPage)
+}
+
+func (r *runner) handleMeta(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"target_url":   r.targetURL,
+		"mobile_ready": isMobileReady(r.targetURL),
+	})
+}
+
+func (r *runner) handleQR(w http.ResponseWriter, _ *http.Request) {
+	png, err := qrcode.Encode(r.targetURL, qrcode.Medium, 256)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(png)
 }
 
 func (r *runner) handleBegin(w http.ResponseWriter, _ *http.Request) {
@@ -231,4 +260,22 @@ func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func isMobileReady(target string) bool {
+	u, err := url.Parse(target)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return false
+	}
+	return true
 }
