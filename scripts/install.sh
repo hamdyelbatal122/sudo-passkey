@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_SLUG="${PASSKEY_SUDO_REPO:-hamdyelbatal122/sudo-passkey}"
+REPO_NAME="${REPO_SLUG#*/}"
 BIN_NAME="passkey-sudo"
 INSTALL_DIR="${PASSKEY_SUDO_INSTALL_DIR:-/usr/local/bin}"
 WORKDIR="${TMPDIR:-/tmp}/passkey-sudo-install"
@@ -117,30 +118,34 @@ download_release_binary() {
 }
 
 build_from_source() {
-  local tag="$1"
+  local ref="$1"
   local source_tgz source_dir
 
-  ensure_go
-
-  source_tgz="$WORKDIR/source.tgz"
-  curl -fsSL "https://github.com/${REPO_SLUG}/archive/refs/tags/${tag}.tar.gz" -o "$source_tgz"
+  source_tgz="$WORKDIR/source-${ref}.tgz"
+  curl -fsSL "https://github.com/${REPO_SLUG}/archive/refs/${ref}.tar.gz" -o "$source_tgz"
   tar -xzf "$source_tgz" -C "$WORKDIR"
 
-  source_dir="$WORKDIR/sudo-passkey-${tag#v}"
+  source_dir="$WORKDIR/${REPO_NAME}-${ref#tags/}"
   if [[ ! -d "$source_dir" ]]; then
-    source_dir="$WORKDIR/sudo-passkey-$tag"
+    source_dir="$WORKDIR/${REPO_NAME}-$(basename "$ref")"
   fi
   if [[ ! -d "$source_dir" ]]; then
-    source_dir="$(find "$WORKDIR" -maxdepth 1 -type d -name 'sudo-passkey-*' | head -n 1)"
+    source_dir="$(find "$WORKDIR" -maxdepth 1 -type d -name "${REPO_NAME}-*" | head -n 1)"
   fi
 
   if [[ -z "$source_dir" || ! -d "$source_dir" ]]; then
-    echo "Failed to locate extracted source directory."
-    exit 1
+    return 1
   fi
+
+  if [[ ! -d "$source_dir/cmd/passkey-sudo" ]]; then
+    return 1
+  fi
+
+  ensure_go
 
   (cd "$source_dir" && go build -o "$WORKDIR/$BIN_NAME" ./cmd/passkey-sudo)
   install_binary "$WORKDIR/$BIN_NAME"
+  return 0
 }
 
 rm -rf "$WORKDIR"
@@ -159,8 +164,14 @@ if download_release_binary "$TAG"; then
   echo "Installed ${BIN_NAME} binary from release assets."
 else
   echo "Release asset not available for this platform. Falling back to source build."
-  build_from_source "$TAG"
-  echo "Installed ${BIN_NAME} by building from source."
+  if build_from_source "tags/${TAG}"; then
+    echo "Installed ${BIN_NAME} by building from release source tag ${TAG}."
+  elif build_from_source "heads/master"; then
+    echo "Installed ${BIN_NAME} by building from source on master branch."
+  else
+    echo "Failed to build from both release tag and master source."
+    exit 1
+  fi
 fi
 
 echo "Installed ${BIN_NAME} to ${INSTALL_DIR}/${BIN_NAME}"
