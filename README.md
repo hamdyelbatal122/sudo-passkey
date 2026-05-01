@@ -110,6 +110,28 @@ passkey-sudo settings set open-browser false
 passkey-sudo settings set sudo-non-interactive true
 ```
 
+## Mobile Passkey From Laptop (QR)
+
+If you are on a laptop and want to approve passkey from your phone:
+
+1. Ensure laptop and phone are on the same network.
+2. Set RP host to laptop LAN IP/hostname (not localhost).
+3. Run enrollment/auth command.
+4. Scan QR shown on the browser page from phone.
+
+Example:
+
+```bash
+passkey-sudo settings set rp-id 192.168.1.10
+passkey-sudo settings set rp-origin http://192.168.1.10:14141
+passkey-sudo enroll
+```
+
+Notes:
+
+- `localhost` works for laptop-only flow.
+- For mobile QR flow, `localhost` and loopback IPs are intentionally blocked.
+
 ## Configuration
 
 Default config path:

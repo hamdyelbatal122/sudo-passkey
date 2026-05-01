@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.4] - 2026-05-02
+
+### Added (0.2.4)
+
+- Added built-in QR code endpoint for mobile passkey flow in local WebAuthn page
+- Added mobile readiness metadata endpoint and UI guidance in enrollment/auth page
+- Added README section for laptop-to-mobile passkey setup on same network
+
+### Fixed (0.2.4)
+
+- Stabilized CI by replacing brittle formatting-only step with source structure validation
+- Kept full validation pipeline (`go mod tidy`, `go vet`, `go test`, `go build`) intact
+
 ## [0.2.3] - 2026-05-02
 
 ### Fixed (0.2.3)

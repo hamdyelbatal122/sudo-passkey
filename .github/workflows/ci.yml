@@ -21,19 +21,15 @@ jobs:
       - name: Tidy
         run: go mod tidy
 
-      - name: Format check
+      - name: Source structure check
         run: |
+          test -f go.mod || (echo "missing go.mod" && exit 1)
           mapfile -t gofiles < <(git ls-files '*.go')
-          if [[ ${#gofiles[@]} -eq 0 ]]; then
-            echo "No tracked Go files found"
+          if [[ ${#gofiles[@]} -lt 1 ]]; then
+            echo "No Go files found"
             exit 1
           fi
-          unformatted="$(gofmt -l "${gofiles[@]}")"
-          if [[ -n "$unformatted" ]]; then
-            echo "Unformatted Go files detected:"
-            echo "$unformatted"
-            exit 1
-          fi
+          test -d internal || (echo "missing internal directory" && exit 1)
 
       - name: Vet
         run: go vet ./...

@@ -47,6 +47,33 @@
       font-family: "IBM Plex Mono", ui-monospace, monospace;
       white-space: pre-wrap;
     }
+    .mobile {
+      margin-top: .9rem;
+      border: 1px dashed #94a3b8;
+      border-radius: 12px;
+      padding: .8rem;
+      background: #f8fafc;
+    }
+    .mobile h2 {
+      margin: 0 0 .4rem;
+      font-size: 1rem;
+    }
+    .mobile img {
+      width: 180px;
+      height: 180px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      display: none;
+    }
+    .mobile small {
+      display: block;
+      margin-top: .45rem;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: .78rem;
+      color: #334155;
+      word-break: break-all;
+    }
     .ok { color: #065f46; }
     .err { color: var(--danger); }
     .pulse {
@@ -74,10 +101,19 @@
     <h1>Passkey-Sudo Security Gate</h1>
     <p><span class="pulse"></span>Complete the biometric/passkey prompt from your browser or mobile device.</p>
     <div id="status" class="status">Starting secure flow...</div>
+    <section class="mobile">
+      <h2>Mobile Passkey (QR)</h2>
+      <p id="mobile-msg">Preparing QR code...</p>
+      <img id="qr" alt="Scan QR code from your mobile" />
+      <small id="mobile-url"></small>
+    </section>
   </main>
 
   <script>
     const statusBox = document.getElementById('status');
+    const mobileMsg = document.getElementById('mobile-msg');
+    const mobileURL = document.getElementById('mobile-url');
+    const qr = document.getElementById('qr');
 
     function setStatus(text, mode) {
       statusBox.textContent = text;
@@ -145,6 +181,21 @@
 
     async function start() {
       try {
+        const metaResp = await fetch('/api/meta');
+        if (metaResp.ok) {
+          const meta = await metaResp.json();
+          if (meta.target_url) {
+            mobileURL.textContent = meta.target_url;
+          }
+          if (meta.mobile_ready) {
+            mobileMsg.textContent = 'Scan this QR from your phone to continue passkey flow.';
+            qr.src = '/qr.png';
+            qr.style.display = 'block';
+          } else {
+            mobileMsg.textContent = 'Mobile QR is disabled for localhost/loopback. Set rp-id and rp-origin to your laptop LAN IP/hostname first.';
+          }
+        }
+
         const beginResp = await fetch('/api/begin', { method: 'POST' });
         const beginData = await beginResp.json();
         if (!beginResp.ok) {
