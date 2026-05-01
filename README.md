@@ -34,32 +34,46 @@ See docs/sudoers.example.
 
 ## Installation
 
-### One-line installer (Linux/macOS)
+### Recommended: install latest release (Linux/macOS)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
 ```
 
-If your repository default branch is `main`, use:
+What this installer does:
+
+- Detects your OS/architecture
+- Downloads and installs the latest GitHub Release binary when available
+- Falls back to source build if no release asset exists for your platform
+- Automatically installs Go only when fallback build is needed and Go is missing
+
+Optional environment overrides:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/main/scripts/install.sh | bash
+PASSKEY_SUDO_INSTALL_DIR=$HOME/.local/bin curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
+PASSKEY_SUDO_GO_VERSION=1.23.10 curl -fsSL https://raw.githubusercontent.com/hamdyelbatal122/sudo-passkey/master/scripts/install.sh | bash
 ```
 
-### From source
+### Install from source manually
 
 ```bash
 git clone https://github.com/hamdyelbatal122/sudo-passkey.git
 cd sudo-passkey
+make tidy
 make build
 sudo install -m 0755 bin/passkey-sudo /usr/local/bin/passkey-sudo
 ```
 
-### Quick local build
+### If Go is not installed and you prefer manual setup
+
+Install Go 1.23+ from:
+
+- https://go.dev/doc/install
+
+Then verify:
 
 ```bash
-go build -o passkey-sudo ./cmd/passkey-sudo
-./passkey-sudo version
+go version
 ```
 
 ## Quick start
