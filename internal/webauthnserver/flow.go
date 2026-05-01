@@ -137,8 +137,7 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		}()
 		fmt.Printf("Open %s to continue %s flow\n", plan.landingURL, mode)
 		fmt.Printf("Mobile QR target: %s\n", plan.mobileURL)
-		fmt.Println("Note: browser may show a certificate warning (self-signed local cert).")
-		fmt.Println("Click Advanced -> Proceed once, then passkey works normally.")
+		fmt.Println("Note: this LAN TLS mode is experimental and may fail if certificate is not trusted.")
 	} else {
 		go func() {
 			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -146,6 +145,7 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 			}
 		}()
 		fmt.Printf("Open %s to continue %s flow (localhost mode)\n", plan.landingURL, mode)
+		fmt.Println("Tip: use browser passkey option 'use a phone or tablet' for cross-device enrollment.")
 	}
 
 	if cfg.OpenBrowserOnPrompt {
@@ -172,6 +172,18 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 }
 
 func buildServePlan() servePlan {
+	if os.Getenv("PASSKEY_SUDO_ENABLE_LAN_TLS") != "1" {
+		fallbackOrigin := "http://localhost:" + defaultPort
+		return servePlan{
+			listenAddr: "localhost:" + defaultPort,
+			landingURL: fallbackOrigin + "/",
+			mobileURL:  "",
+			rpID:       "localhost",
+			rpOrigin:   fallbackOrigin,
+			cert:       nil,
+		}
+	}
+
 	lanIP := detectLANIP()
 	if lanIP != nil {
 		ipStr := lanIP.String()
