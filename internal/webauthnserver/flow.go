@@ -233,12 +233,70 @@ func (r *runner) registerRoutes(mux *http.ServeMux) {
 }
 
 func (r *runner) handleIndex(w http.ResponseWriter, req *http.Request) {
+	if r.rpID == "localhost" && isLocalClientRequest(req) && !isLocalHost(req.Host) {
+		http.Redirect(w, req, r.landingURL, http.StatusTemporaryRedirect)
+		return
+	}
 	if r.mobileURL != "" && shouldRedirectToRPHost(req.Host, r.rpID) {
 		http.Redirect(w, req, r.mobileURL, http.StatusTemporaryRedirect)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(embeddedFlowPage)
+}
+
+func isLocalClientRequest(req *http.Request) bool {
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		host = req.RemoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() {
+		return true
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			switch v := addr.(type) {
+			case *net.IPNet:
+				if v.IP.Equal(ip) {
+					return true
+				}
+			case *net.IPAddr:
+				if v.IP.Equal(ip) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func isLocalHost(hostPort string) bool {
+	host := hostPort
+	if strings.Contains(hostPort, ":") {
+		if h, _, err := net.SplitHostPort(hostPort); err == nil {
+			host = h
+		}
+	}
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 func shouldRedirectToRPHost(hostPort string, rpID string) bool {
