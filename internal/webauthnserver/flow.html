@@ -93,7 +93,7 @@
     <div id="status" class="status">Starting secure flow…</div>
     <div id="cert-warn" class="cert-warn">
       <strong>Phone Passkey</strong>
-      QR is enabled only when a trusted HTTPS public origin is active.
+      You can continue enrollment from your phone by scanning the QR code.
     </div>
   </main>
 
@@ -146,11 +146,19 @@
       for (let i = 0; i < str.length; i++) buf[i] = str.charCodeAt(i);
       return buf.buffer;
     }
-    function bufToB64(buf) {
-      const bytes = new Uint8Array(buf);
+    function bytesToB64(bytes) {
       let s = '';
       bytes.forEach(b => s += String.fromCharCode(b));
       return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+    function bufToB64(value) {
+      if (value instanceof ArrayBuffer) {
+        return bytesToB64(new Uint8Array(value));
+      }
+      if (ArrayBuffer.isView(value)) {
+        return bytesToB64(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+      }
+      return value;
     }
     function normalizeCreate(pk) {
       pk.challenge = b64ToBuf(pk.challenge);
@@ -164,12 +172,24 @@
       return pk;
     }
     function credToJSON(cred) {
-      const resp = {};
-      for (const k of Object.keys(cred.response)) {
-        const v = cred.response[k];
-        resp[k] = (v instanceof ArrayBuffer || ArrayBuffer.isView(v))
-          ? bufToB64(v instanceof ArrayBuffer ? v : v.buffer)
-          : v;
+      const resp = {
+        clientDataJSON: bufToB64(cred.response.clientDataJSON),
+      };
+
+      if ('attestationObject' in cred.response) {
+        resp.attestationObject = bufToB64(cred.response.attestationObject);
+      }
+      if ('authenticatorData' in cred.response) {
+        resp.authenticatorData = bufToB64(cred.response.authenticatorData);
+      }
+      if ('signature' in cred.response) {
+        resp.signature = bufToB64(cred.response.signature);
+      }
+      if ('userHandle' in cred.response && cred.response.userHandle) {
+        resp.userHandle = bufToB64(cred.response.userHandle);
+      }
+      if (typeof cred.response.getTransports === 'function') {
+        resp.transports = cred.response.getTransports();
       }
       return { id: cred.id, rawId: bufToB64(cred.rawId), type: cred.type, response: resp,
                clientExtensionResults: cred.getClientExtensionResults() };

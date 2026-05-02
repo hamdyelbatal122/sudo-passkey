@@ -168,7 +168,7 @@ func buildServePlan() servePlan {
 		landingURL:  localhostOrigin + "/",
 		mobileURL:   "",
 		mobileReady: false,
-		mobileHint:  "mobile WebAuthn needs trusted HTTPS origin. Start ngrok or set PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN",
+		mobileHint:  "To use phone passkey, start a trusted HTTPS tunnel (for example ngrok), then refresh this page.",
 		rpID:        "localhost",
 		rpOrigin:    localhostOrigin,
 	}
@@ -192,7 +192,7 @@ func buildServePlan() servePlan {
 	plan.landingURL = strings.TrimRight(origin, "/") + "/"
 	plan.mobileURL = plan.landingURL
 	plan.mobileReady = true
-	plan.mobileHint = "trusted HTTPS origin active"
+	plan.mobileHint = "Phone passkey is ready. Scan QR and continue on your phone."
 	plan.rpID = host
 	plan.rpOrigin = strings.TrimRight(origin, "/")
 	return plan
@@ -202,10 +202,10 @@ func detectTrustedPublicOrigin() (string, string) {
 	if env := strings.TrimSpace(os.Getenv("PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN")); env != "" {
 		u, err := url.Parse(env)
 		if err != nil {
-			return "", "PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN is invalid URL"
+			return "", "Public HTTPS origin value is invalid."
 		}
 		if u.Scheme != "https" || !isPublicHost(u.Hostname()) {
-			return "", "PASSKEY_SUDO_PUBLIC_HTTPS_ORIGIN must be HTTPS with non-local host"
+			return "", "Public HTTPS origin must use a trusted https host."
 		}
 		return strings.TrimRight(env, "/"), ""
 	}
@@ -214,7 +214,7 @@ func detectTrustedPublicOrigin() (string, string) {
 	if err == nil && origin != "" {
 		return origin, ""
 	}
-	return "", "no trusted public HTTPS origin detected (ngrok not running)"
+	return "", "Phone passkey needs trusted HTTPS tunnel. Start ngrok and refresh."
 }
 
 func detectNgrokHTTPSOrigin() (string, error) {
