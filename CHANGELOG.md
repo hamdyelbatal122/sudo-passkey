@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.15] - 2026-05-02
+
+### Fixed (0.2.15)
+
+- Fixed root cause of repeated mobile/NFC enrollment failures: desktop and phone were overwriting a shared WebAuthn session
+- Added per-client WebAuthn session tokens (`X-Session-Token`) so each device completes the correct challenge
+- Prevented cross-device session collisions that caused finish-step failures after successful NFC scan
+
+### Improved (0.2.15)
+
+- Added clearer error when session token is missing or expired
+
 ## [0.2.14] - 2026-05-02
 
 ### Fixed (0.2.14)

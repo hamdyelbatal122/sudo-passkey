@@ -2,6 +2,7 @@ package webauthnserver
 
 import (
 	"context"
+	"crypto/rand"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -80,7 +81,7 @@ type runner struct {
 	errCh      chan error
 	doneCh     chan struct{}
 	sessionMu  sync.Mutex
-	session    *webauthnlib.SessionData
+	sessions   map[string]*webauthnlib.SessionData
 }
 
 func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
@@ -114,6 +115,7 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		wa:         wa,
 		errCh:      make(chan error, 1),
 		doneCh:     make(chan struct{}, 1),
+		sessions:   make(map[string]*webauthnlib.SessionData),
 	}
 
 	mux := http.NewServeMux()
@@ -302,18 +304,16 @@ func (r *runner) handleQR(w http.ResponseWriter, _ *http.Request) {
 func (r *runner) handleBegin(w http.ResponseWriter, _ *http.Request) {
 	u := user{cfg: r.cfg}
 	var (
-		opts interface{}
-		err  error
+		opts    interface{}
+		session *webauthnlib.SessionData
+		err     error
 	)
-
-	r.sessionMu.Lock()
-	defer r.sessionMu.Unlock()
 
 	switch r.mode {
 	case ModeRegister:
-		opts, r.session, err = r.wa.BeginRegistration(u)
+		opts, session, err = r.wa.BeginRegistration(u)
 	case ModeLogin:
-		opts, r.session, err = r.wa.BeginLogin(u)
+		opts, session, err = r.wa.BeginLogin(u)
 	default:
 		err = fmt.Errorf("unsupported mode: %s", r.mode)
 	}
@@ -321,16 +321,33 @@ func (r *runner) handleBegin(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+
+	token, err := randomSessionToken()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	r.sessionMu.Lock()
+	r.sessions[token] = session
+	r.sessionMu.Unlock()
+	w.Header().Set("X-Session-Token", token)
 	writeJSON(w, http.StatusOK, opts)
 }
 
 func (r *runner) handleFinish(w http.ResponseWriter, req *http.Request) {
 	u := user{cfg: r.cfg}
+	token := strings.TrimSpace(req.Header.Get("X-Session-Token"))
+	if token == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing session token"})
+		return
+	}
+
 	r.sessionMu.Lock()
-	session := r.session
+	session := r.sessions[token]
+	delete(r.sessions, token)
 	r.sessionMu.Unlock()
 	if session == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing session"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session expired. refresh and retry"})
 		return
 	}
 
@@ -368,4 +385,12 @@ func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func randomSessionToken() (string, error) {
+	buf := make([]byte, 18)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate session token: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
