@@ -311,8 +311,10 @@
       await loadQR();
       try {
         const beginResp = await fetch('/api/begin', { method: 'POST' });
+        const sessionToken = beginResp.headers.get('x-session-token');
         const beginData = await beginResp.json();
         if (!beginResp.ok) throw new Error(beginData.error || 'Failed to initialise challenge');
+        if (!sessionToken) throw new Error('Session initialization failed. Please refresh and retry.');
 
         if (beginData.publicKey.user) {
           // ── Registration ──────────────────────────────────
@@ -321,7 +323,10 @@
           const cred = await createWithRetry(beginData.publicKey);
           const fin  = await fetch('/api/finish', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: {
+              'content-type': 'application/json',
+              'x-session-token': sessionToken,
+            },
             body:    JSON.stringify(credToJSON(cred)),
           });
           const finData = await fin.json();
@@ -337,7 +342,10 @@
         const assertion = await getWithRetry(beginData.publicKey);
         const fin = await fetch('/api/finish', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            'x-session-token': sessionToken,
+          },
           body:    JSON.stringify(credToJSON(assertion)),
         });
         const finData = await fin.json();
