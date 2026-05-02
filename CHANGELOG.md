@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.13] - 2026-05-02
+
+### Fixed (0.2.13)
+
+- Added retry fallback for Android/mobile `Credential Manager` startup failures during passkey create/get
+- Relaxed strict WebAuthn client options on retry to improve NFC/phone compatibility
+- Improved failure handling path for the error: "An unknown error occurred while starting the credential manager"
+
+### Improved (0.2.13)
+
+- Kept mobile guidance text general and user-friendly
+
 ## [0.2.12] - 2026-05-02
 
 ### Fixed (0.2.12)
