@@ -70,7 +70,11 @@ func runPasskey(args []string) int {
 			return 0
 		}
 		for i, cred := range cfg.Credentials {
-			fmt.Printf("%d) credential-id-bytes=%d\n", i+1, len(cred.ID))
+			id := fmt.Sprintf("%x", cred.ID)
+			if len(id) > 16 {
+				id = id[:16] + "…"
+			}
+			fmt.Printf("%d) id=%s  bytes=%d\n", i+1, id, len(cred.ID))
 		}
 		return 0
 	case "remove":
@@ -168,6 +172,13 @@ func runAllow(args []string) int {
 		if target == "" {
 			fmt.Println("command cannot be empty")
 			return 2
+		}
+		if !strings.Contains(target, "/") {
+			if resolved, err := exec.LookPath(target); err == nil {
+				target = resolved
+			}
+		} else {
+			target = filepath.Clean(target)
 		}
 		filtered := cfg.AllowedCommands[:0]
 		removed := false
@@ -370,7 +381,7 @@ func runCommand(args []string) int {
 	if err != nil {
 		var ee gate.ExitCoder
 		if errors.As(err, &ee) {
-			if cfg.SudoNonInteractive {
+			if cfg.SudoNonInteractive && ee.ExitCode() == 1 {
 				fmt.Println("hint: sudo passwordless policy is required for this command. See docs/sudoers.example")
 			}
 			return ee.ExitCode()
