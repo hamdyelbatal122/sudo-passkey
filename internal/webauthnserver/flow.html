@@ -200,6 +200,15 @@
       return msg.includes('credential manager') || msg.includes('unknown error occurred while starting');
     }
 
+    function isRetryableCredentialError(err) {
+      if (!err) return false;
+      if (isCredentialManagerStartError(err)) return true;
+      const name = String(err.name || '').toLowerCase();
+      const msg = String(err.message || '').toLowerCase();
+      if (name === 'notallowederror' && (msg.includes('credential manager') || msg.includes('interrupted'))) return true;
+      return false;
+    }
+
     function buildCreateFallback(publicKey) {
       const pk = { ...publicKey };
       pk.timeout = Math.max(Number(pk.timeout || 0), 120000);
@@ -220,6 +229,21 @@
       return pk;
     }
 
+    function buildCreateNFCFallback(publicKey) {
+      const pk = { ...publicKey };
+      pk.timeout = Math.max(Number(pk.timeout || 0), 120000);
+      pk.attestation = 'none';
+      pk.extensions = undefined;
+      pk.excludeCredentials = [];
+      pk.authenticatorSelection = {
+        authenticatorAttachment: 'cross-platform',
+        residentKey: 'discouraged',
+        requireResidentKey: false,
+        userVerification: 'preferred',
+      };
+      return pk;
+    }
+
     function buildGetFallback(publicKey) {
       const pk = { ...publicKey };
       pk.timeout = Math.max(Number(pk.timeout || 0), 120000);
@@ -235,11 +259,19 @@
       try {
         return await navigator.credentials.create({ publicKey });
       } catch (err) {
-        if (!isCredentialManagerStartError(err)) {
+        if (!isRetryableCredentialError(err)) {
           throw err;
         }
         setStatus('Retrying with mobile-compatible settings…');
-        return navigator.credentials.create({ publicKey: buildCreateFallback(publicKey) });
+        try {
+          return await navigator.credentials.create({ publicKey: buildCreateFallback(publicKey) });
+        } catch (err2) {
+          if (!isRetryableCredentialError(err2)) {
+            throw err2;
+          }
+          setStatus('Retrying with NFC-compatible settings…');
+          return navigator.credentials.create({ publicKey: buildCreateNFCFallback(publicKey) });
+        }
       }
     }
 
@@ -247,7 +279,7 @@
       try {
         return await navigator.credentials.get({ publicKey });
       } catch (err) {
-        if (!isCredentialManagerStartError(err)) {
+        if (!isRetryableCredentialError(err)) {
           throw err;
         }
         setStatus('Retrying authentication with mobile-compatible settings…');
