@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.12] - 2026-05-02
+
+### Fixed (0.2.12)
+
+- Fixed mobile enrollment failure: `error parsing attestation response`
+- Corrected client-side WebAuthn binary serialization for typed-array responses with proper byte offsets
+- Sent only required WebAuthn response fields for registration/authentication payloads
+
+### Improved (0.2.12)
+
+- Replaced technical mobile readiness text with general user-friendly guidance
+
 ## [0.2.11] - 2026-05-02
 
 ### Fixed (0.2.11)
