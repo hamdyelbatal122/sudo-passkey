@@ -71,6 +71,13 @@ type servePlan struct {
 	rpOrigin    string
 }
 
+const sessionTTL = 3 * time.Minute
+
+type sessionEntry struct {
+	data      *webauthnlib.SessionData
+	expiresAt time.Time
+}
+
 type runner struct {
 	cfg        *config.Config
 	mode       Mode
@@ -81,7 +88,7 @@ type runner struct {
 	errCh      chan error
 	doneCh     chan struct{}
 	sessionMu  sync.Mutex
-	sessions   map[string]*webauthnlib.SessionData
+	sessions   map[string]*sessionEntry
 }
 
 func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
@@ -115,7 +122,7 @@ func Run(ctx context.Context, cfg *config.Config, mode Mode) error {
 		wa:         wa,
 		errCh:      make(chan error, 1),
 		doneCh:     make(chan struct{}, 1),
-		sessions:   make(map[string]*webauthnlib.SessionData),
+		sessions:   make(map[string]*sessionEntry),
 	}
 
 	mux := http.NewServeMux()
@@ -283,6 +290,7 @@ func (r *runner) handleMeta(w http.ResponseWriter, _ *http.Request) {
 		"mobile_url":   r.mobileURL,
 		"mobile_ready": r.mobileURL != "",
 		"mobile_hint":  r.mobileHint,
+		"mode":         string(r.mode),
 	})
 }
 
@@ -328,7 +336,8 @@ func (r *runner) handleBegin(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	r.sessionMu.Lock()
-	r.sessions[token] = session
+	r.sessions[token] = &sessionEntry{data: session, expiresAt: time.Now().Add(sessionTTL)}
+	r.pruneExpiredSessions()
 	r.sessionMu.Unlock()
 	w.Header().Set("X-Session-Token", token)
 	writeJSON(w, http.StatusOK, opts)
@@ -343,13 +352,14 @@ func (r *runner) handleFinish(w http.ResponseWriter, req *http.Request) {
 	}
 
 	r.sessionMu.Lock()
-	session := r.sessions[token]
+	entry := r.sessions[token]
 	delete(r.sessions, token)
 	r.sessionMu.Unlock()
-	if session == nil {
+	if entry == nil || time.Now().After(entry.expiresAt) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session expired. refresh and retry"})
 		return
 	}
+	session := entry.data
 
 	switch r.mode {
 	case ModeRegister:
@@ -378,6 +388,16 @@ func (r *runner) handleFinish(w http.ResponseWriter, req *http.Request) {
 	select {
 	case r.doneCh <- struct{}{}:
 	default:
+	}
+}
+
+// pruneExpiredSessions must be called with sessionMu held.
+func (r *runner) pruneExpiredSessions() {
+	now := time.Now()
+	for k, e := range r.sessions {
+		if now.After(e.expiresAt) {
+			delete(r.sessions, k)
+		}
 	}
 }
 
