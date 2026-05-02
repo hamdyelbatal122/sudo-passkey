@@ -195,6 +195,66 @@
                clientExtensionResults: cred.getClientExtensionResults() };
     }
 
+    function isCredentialManagerStartError(err) {
+      const msg = String((err && err.message) || err || '').toLowerCase();
+      return msg.includes('credential manager') || msg.includes('unknown error occurred while starting');
+    }
+
+    function buildCreateFallback(publicKey) {
+      const pk = { ...publicKey };
+      pk.timeout = Math.max(Number(pk.timeout || 0), 120000);
+      pk.attestation = 'none';
+      delete pk.extensions;
+
+      if (pk.authenticatorSelection) {
+        pk.authenticatorSelection = { ...pk.authenticatorSelection };
+        // Android Credential Manager is more stable when attachment is not forced.
+        delete pk.authenticatorSelection.authenticatorAttachment;
+        if (pk.authenticatorSelection.residentKey === 'required') {
+          pk.authenticatorSelection.residentKey = 'preferred';
+        }
+        if (pk.authenticatorSelection.requireResidentKey === true) {
+          pk.authenticatorSelection.requireResidentKey = false;
+        }
+      }
+      return pk;
+    }
+
+    function buildGetFallback(publicKey) {
+      const pk = { ...publicKey };
+      pk.timeout = Math.max(Number(pk.timeout || 0), 120000);
+      delete pk.extensions;
+      // Some Android devices fail to start when allowCredentials is too strict.
+      if (Array.isArray(pk.allowCredentials) && pk.allowCredentials.length > 0) {
+        pk.allowCredentials = undefined;
+      }
+      return pk;
+    }
+
+    async function createWithRetry(publicKey) {
+      try {
+        return await navigator.credentials.create({ publicKey });
+      } catch (err) {
+        if (!isCredentialManagerStartError(err)) {
+          throw err;
+        }
+        setStatus('Retrying with mobile-compatible settings…');
+        return navigator.credentials.create({ publicKey: buildCreateFallback(publicKey) });
+      }
+    }
+
+    async function getWithRetry(publicKey) {
+      try {
+        return await navigator.credentials.get({ publicKey });
+      } catch (err) {
+        if (!isCredentialManagerStartError(err)) {
+          throw err;
+        }
+        setStatus('Retrying authentication with mobile-compatible settings…');
+        return navigator.credentials.get({ publicKey: buildGetFallback(publicKey) });
+      }
+    }
+
     // ── Load QR when mobile mode is active ───────────────────
     async function loadQR() {
       try {
@@ -226,7 +286,7 @@
           // ── Registration ──────────────────────────────────
           normalizeCreate(beginData.publicKey);
           setStatus('Touch your fingerprint sensor or use phone passkey (registration)…');
-          const cred = await navigator.credentials.create({ publicKey: beginData.publicKey });
+          const cred = await createWithRetry(beginData.publicKey);
           const fin  = await fetch('/api/finish', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -242,7 +302,7 @@
         // ── Authentication ────────────────────────────────────
         normalizeGet(beginData.publicKey);
         setStatus('Touch your fingerprint sensor to authorise the command…');
-        const assertion = await navigator.credentials.get({ publicKey: beginData.publicKey });
+        const assertion = await getWithRetry(beginData.publicKey);
         const fin = await fetch('/api/finish', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
