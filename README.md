@@ -69,6 +69,50 @@ passkey-sudo check
 passkey-sudo run -- systemctl restart nginx
 ```
 
+## Important: Why sudo May Still Ask Password
+
+`passkey-sudo` is a security gate before `sudo`, not a replacement for sudo policy by itself.
+
+To run commands without entering sudo password every time, you must allow those commands in `sudoers` with `NOPASSWD`.
+
+Example (`visudo`):
+
+```bash
+sudo visudo
+```
+
+Then add a rule (replace `YOUR_USER`):
+
+```text
+YOUR_USER ALL=(ALL:ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/apt, /usr/bin/apt-get
+```
+
+Reference: `docs/sudoers.example`.
+
+After that:
+
+```bash
+passkey-sudo run -- systemctl restart nginx
+```
+
+This should require passkey approval, not sudo password prompt.
+
+## Use Passkey-Sudo Instead Of Typing sudo
+
+By default, `sudo <cmd>` still uses regular sudo behavior.
+To route your daily privileged commands through passkey gate, use one of these options:
+
+Option 1 (recommended): use `passkey-sudo run -- <command>` directly.
+
+Option 2 (shell alias):
+
+```bash
+echo "alias sudo='passkey-sudo run --'" >> ~/.bashrc
+source ~/.bashrc
+```
+
+If you use Zsh, apply the same alias in `~/.zshrc`.
+
 ## Command Reference
 
 ```text
@@ -142,13 +186,13 @@ Mobile WebAuthn requires a trusted HTTPS origin. Best workflow:
 passkey-sudo enroll
 ```
 
-2. In another terminal, expose local port with ngrok:
+1. In another terminal, expose local port with ngrok:
 
 ```bash
 ngrok http 14141
 ```
 
-3. Re-run `passkey-sudo enroll`.
+1. Re-run `passkey-sudo enroll`.
 
 Passkey-Sudo auto-detects ngrok HTTPS tunnel and uses it as trusted RP origin.
 Then QR works on phone without insecure-origin errors.
