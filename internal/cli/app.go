@@ -370,6 +370,9 @@ func runCommand(args []string) int {
 	if err != nil {
 		var ee gate.ExitCoder
 		if errors.As(err, &ee) {
+			if cfg.SudoNonInteractive {
+				fmt.Println("hint: sudo passwordless policy is required for this command. See docs/sudoers.example")
+			}
 			return ee.ExitCode()
 		}
 		fmt.Printf("failed to execute command: %v\n", err)

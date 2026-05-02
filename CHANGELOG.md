@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.16] - 2026-05-02
+
+### Fixed (0.2.16)
+
+- Fixed internal module import path mismatch in gate package
+- Added runtime hint when `sudo -n` fails because command is not allowed passwordless in sudoers
+
+### Improved (0.2.16)
+
+- Expanded installation and usage documentation for correct sudo policy setup (`NOPASSWD`)
+- Documented optional shell alias to route daily `sudo` usage through passkey gate
+
 ## [0.2.15] - 2026-05-02
 
 ### Fixed (0.2.15)
