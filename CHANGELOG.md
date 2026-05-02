@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.14] - 2026-05-02
+
+### Fixed (0.2.14)
+
+- Improved handling of NFC enrollment failures on mobile Credential Manager
+- Added multi-stage retry path for registration (`normal` -> `mobile-compatible` -> `NFC-compatible cross-platform`)
+- Reduced strict create options in NFC retry mode to avoid provider startup failures after scan
+
 ## [0.2.13] - 2026-05-02
 
 ### Fixed (0.2.13)
