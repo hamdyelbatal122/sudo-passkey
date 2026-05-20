@@ -264,3 +264,4 @@ All notable changes to this project are documented in this file.
 - [2024-11-27]: docs: document WebAuthn configuration guidelines
 - [2024-11-30]: chore: update passkey metadata validations
 - [2026-05-20]: feat: add biometric fallback authentication
+- [2026-05-20]: fix: resolve credential ID collision in multi-device setup
